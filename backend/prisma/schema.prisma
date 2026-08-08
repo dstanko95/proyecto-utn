@@ -1,0 +1,91 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  projects     Project[]
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model Project {
+  id                     String        @id @default(uuid())
+  name                   String
+  generalObjective       String
+  scope                  String
+  initialContextMarkdown String?
+  contextSummary         String?
+  status                 String        @default("DRAFT_CONTEXT")
+  userId                 String
+  user                   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  actors                 Actor[]
+  requirements           Requirement[]
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
+}
+
+model Actor {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Requirement {
+  id                 String               @id @default(uuid())
+  code               String
+  title              String
+  description        String
+  status             String               @default("DRAFT")
+  projectId          String
+  project            Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versions           RequirementVersion[]
+  businessRules      BusinessRule[]
+  sourceDependencies Dependency[]          @relation("SourceDependency")
+  targetDependencies Dependency[]          @relation("TargetDependency")
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+}
+
+model RequirementVersion {
+  id              String      @id @default(uuid())
+  requirementId   String
+  requirement     Requirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  versionNumber   String
+  contentMarkdown String
+  mermaidDiagram  String?
+  authorName      String
+  changeLog       String
+  createdAt       DateTime    @default(now())
+}
+
+model BusinessRule {
+  id            String      @id @default(uuid())
+  requirementId String
+  requirement   Requirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  ruleCode      String
+  statement     String
+  ruleType      String      @default("EXPLICIT")
+  sourceOrigin  String?
+  createdAt     DateTime    @default(now())
+}
+
+model Dependency {
+  id             String      @id @default(uuid())
+  sourceReqId    String
+  sourceReq      Requirement @relation("SourceDependency", fields: [sourceReqId], references: [id], onDelete: Cascade)
+  targetReqId    String
+  targetReq      Requirement @relation("TargetDependency", fields: [targetReqId], references: [id], onDelete: Cascade)
+  dependencyType String      @default("REQUIRES")
+}
