@@ -38,17 +38,83 @@ class LearnRequest(BaseModel):
     patternType: str = "RULE"
     ruleStatement: str
 
-def get_llm():
-    if settings.GOOGLE_API_KEY and settings.GOOGLE_API_KEY != "YOUR_GEMINI_API_KEY_HERE":
-        try:
-            return ChatGoogleGenerativeAI(
-                model=settings.MODEL_NAME,
-                google_api_key=settings.GOOGLE_API_KEY,
-                temperature=0.2
-            )
-        except Exception as e:
-            print(f"[LLM Init Error]: {e}")
-    return None
+def parse_markdown_context_dynamically(text: str) -> Dict[str, Any]:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if not lines:
+        return {
+            "detected_domain": "Sistema General de Software",
+            "problem_summary": "Sin información suficiente.",
+            "key_actors": ["Usuario"],
+            "functional_scope": [],
+            "business_constraints": []
+        }
+
+    domain = "Sistema General"
+    summary_lines = []
+    actors = []
+    scope_items = []
+    constraints_items = []
+
+    # Detect title/domain from top line or non-section headers
+    for line in lines[:5]:
+        if line.startswith("# ") or line.startswith("## "):
+            header_text = line.lstrip("#").strip()
+            if not any(k in header_text.lower() for k in ["problema", "actor", "usuario", "alcance", "restriccion", "objetivo", "regla"]):
+                domain = header_text
+                break
+        elif not line.startswith("#") and domain == "Sistema General" and len(line) < 80:
+            domain = line.strip()
+            break
+
+    current_section = "summary"
+
+    for line in lines:
+        lower = line.lower()
+        if line.startswith("#"):
+            header_clean = line.lstrip("#").strip().lower()
+            if any(k in header_clean for k in ["problema", "objetivo", "descripción", "descripcion"]):
+                current_section = "summary"
+            elif any(k in header_clean for k in ["actor", "usuario", "rol", "roles"]):
+                current_section = "actors"
+            elif any(k in header_clean for k in ["alcance", "funcional", "característica", "caracteristica"]):
+                current_section = "scope"
+            elif any(k in header_clean for k in ["restricción", "restriccion", "regla", "seguridad"]):
+                current_section = "constraints"
+            continue
+
+        clean_item = line.lstrip("-*• ").strip()
+        if not clean_item or clean_item == domain:
+            continue
+
+        if current_section == "summary":
+            summary_lines.append(clean_item)
+        elif current_section == "actors":
+            role_name = clean_item.split(":")[0].split("-")[0].strip()
+            if role_name and len(role_name) < 40 and role_name not in actors:
+                actors.append(role_name)
+        elif current_section == "scope":
+            scope_items.append(clean_item)
+        elif current_section == "constraints":
+            constraints_items.append(clean_item)
+
+    if not actors:
+        for keyword in ["usuario", "bibliotecario", "administrador", "cliente", "médico", "paciente", "proveedor", "alumno", "profesor", "auditor"]:
+            if keyword in text.lower() and keyword.capitalize() not in actors:
+                actors.append(keyword.capitalize())
+
+    if not actors:
+        actors = ["Usuario"]
+
+    summary = " ".join(summary_lines[:4]) if summary_lines else f"Sistema de software para gestión de {domain}."
+
+    return {
+        "detected_domain": domain,
+        "problem_summary": summary,
+        "key_actors": actors,
+        "functional_scope": scope_items if scope_items else summary_lines[:2] if summary_lines else ["Gestión del Sistema"],
+        "business_constraints": constraints_items if constraints_items else ["Acceso según roles definidos"],
+        "is_ai_generated": False
+    }
 
 @app.get("/health")
 def health_check():
@@ -57,6 +123,8 @@ def health_check():
         "service": "ReqRefiner AI Agents",
         "pgvector_ready": True
     }
+
+from app.llm_provider import invoke_llm_with_fallback
 
 @app.post("/analyze-context")
 def analyze_context(request: ContextAnalyzeRequest):
@@ -68,24 +136,19 @@ def analyze_context(request: ContextAnalyzeRequest):
     if not text:
         raise HTTPException(status_code=400, detail="El documento de contexto inicial no puede estar vacío.")
 
-    llm = get_llm()
-    if llm:
-        system_prompt = """Eres el Agente Analizador del sistema ReqRefiner.
+    system_prompt = """Eres el Agente Analizador del sistema ReqRefiner.
 Tu tarea es analizar el documento Markdown de Contexto Inicial de un nuevo proyecto e identificar en formato JSON estricto:
-1. "detected_domain": Dominio principal del proyecto (ej: Finanzas Personales, Gestión Hospitalaria, E-Commerce, etc.).
+1. "detected_domain": Dominio principal del proyecto (ej: "Sistema de Librería", "Finanzas Personales", etc.). Extrae el nombre o tema específico del texto. NUNCA devuelvas un dominio genérico si el texto especifica un tema particular.
 2. "problem_summary": Resumen conciso del problema principal que el sistema busca resolver.
-3. "key_actors": Lista de actores o roles principales identificados.
-4. "functional_scope": Lista de módulos o capacidades del alcance general.
-5. "business_constraints": Lista de restricciones o reglas de negocio iniciales.
+3. "key_actors": Lista de actores o roles principales identificados explícitamente (ej: ["Usuario", "Bibliotecario"]). Respeta los roles específicos del texto.
+4. "functional_scope": Lista de capacidades o alcance del sistema.
+5. "business_constraints": Lista de restricciones de negocio o reglas de acceso descritas.
 
 Responde ÚNICAMENTE con el JSON válido sin código adicional ni formato markdown."""
 
+    content, source = invoke_llm_with_fallback(system_prompt, text)
+    if content:
         try:
-            response = llm.invoke([
-                SystemMessage(content=system_prompt),
-                HumanMessage(content=text)
-            ])
-            content = response.content.strip()
             if content.startswith("```json"):
                 content = content[7:]
             if content.endswith("```"):
@@ -93,38 +156,17 @@ Responde ÚNICAMENTE con el JSON válido sin código adicional ni formato markdo
             content = content.strip()
 
             parsed = json.loads(content)
+            parsed["is_ai_generated"] = True
+            parsed["response_source"] = source
             return parsed
         except Exception as e:
-            print(f"[LLM Context Analysis Error, falling back to heuristic]: {e}")
+            print(f"[JSON Parse Error on {source}]: {e}")
 
-    # Heuristic fallback for context analysis
-    text_lower = text.lower()
-    if any(k in text_lower for k in ["ingreso", "egreso", "finanza", "pago", "moneda", "dinero", "banco"]):
-        domain = "Finanzas Personales"
-        actors = ["Usuario Registrado", "Administrador"]
-        scope = ["Registro de Ingresos y Egresos", "Dashboard de Flujo de Fondos", "Gestión de Categorías"]
-        constraints = ["Autenticación obligatoria", "Registro de fecha y monto positivo"]
-        summary = "Aplicación móvil para control de finanzas personales, seguimiento de ingresos, egresos y balance general."
-    elif any(k in text_lower for k in ["paciente", "médico", "salud", "turno", "clínica", "hospital"]):
-        domain = "Gestión Salud / Hospitalaria"
-        actors = ["Administrativo", "Médico", "Paciente", "Auditor"]
-        scope = ["Admisión de Pacientes", "Historia Clínica Digital", "Asignación de Turnos"]
-        constraints = ["Unicidad de DNI", "Registro de Domicilio Principal"]
-        summary = "Sistema hospitalario para administración de historias clínicas, admisión de pacientes y turnos médicos."
-    else:
-        domain = "Sistema General de Software"
-        actors = ["Usuario", "Administrador"]
-        scope = ["Gestión de Usuarios", "Procesamiento de Requerimientos"]
-        constraints = ["Acceso restringido"]
-        summary = "Sistema de software para gestión y procesamiento de información general del proyecto."
-
-    return {
-        "detected_domain": domain,
-        "problem_summary": summary,
-        "key_actors": actors,
-        "functional_scope": scope,
-        "business_constraints": constraints
-    }
+    # Dynamic Markdown Context Parser Fallback (Agnostic to predefined domains)
+    res = parse_markdown_context_dynamically(text)
+    res["is_ai_generated"] = False
+    res["response_source"] = "DYNAMIC_FALLBACK"
+    return res
 
 @app.post("/analyze")
 def analyze_requirement(request: AnalyzeRequest):

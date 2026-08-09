@@ -14,11 +14,15 @@ class AnalysisDiagnosis(BaseModel):
     extracted_rules: List[RuleOrigin] = Field(default_factory=list)
     missing_items: List[str] = Field(default_factory=list)
     detected_dependencies: List[str] = Field(default_factory=list)
+    is_ai_generated: bool = True
+    response_source: str = "GEMINI_CLOUD"
 
 class AgentState(BaseModel):
     requirement_text: str
     project_context: Dict[str, Any] = Field(default_factory=dict)
     user_answers: List[str] = Field(default_factory=list)
+    is_ai_generated: bool = True
+    response_source: str = "GEMINI_CLOUD"
     
     # Diagnosis from Analyzer
     diagnosis: Optional[AnalysisDiagnosis] = None

@@ -17,11 +17,12 @@ def get_llm():
             print(f"[LLM Init Error]: {e}")
     return None
 
+from app.llm_provider import invoke_llm_with_fallback
+
 def analyzer_agent(state: AgentState) -> AgentState:
     """
     Agente Analizador Funcional 100% Dinámico (Agnóstico a Dominio y Funcionalidad):
-    Utiliza IA de razonamiento libre o análisis estructural genérico sobre CUALQUIER requerimiento.
-    No contiene palabras clave fijas ni bloques harcodeados de funciones.
+    Utiliza IA de razonamiento libre sobre CUALQUIER requerimiento.
     """
     req_text = state.requirement_text
     project = state.project_context or {}
@@ -29,10 +30,7 @@ def analyzer_agent(state: AgentState) -> AgentState:
     domain = project.get("domain", "General")
     context_markdown = project.get("initialContextMarkdown", "")
 
-    llm = get_llm()
-
-    if llm:
-        system_prompt = f"""Eres el Agente Analizador Funcional del sistema ReqRefiner.
+    system_prompt = f"""Eres el Agente Analizador Funcional del sistema ReqRefiner.
 Tu tarea es analizar el texto de CUALQUIER REQUERIMIENTO FUNCIONAL ESPECÍFICO e identificar en formato JSON estricto:
 1. "detected_domain": Dominio del proyecto ("{domain}").
 2. "detected_actors": Lista de roles o actores que intervienen en este requerimiento específico.
@@ -44,7 +42,7 @@ Tu tarea es analizar el texto de CUALQUIER REQUERIMIENTO FUNCIONAL ESPECÍFICO e
 
 Responde ÚNICAMENTE con la estructura JSON válida sin formato ni texto adicional."""
 
-        human_prompt = f"""CONTEXTO DEL PROYECTO:
+    human_prompt = f"""CONTEXTO DEL PROYECTO:
 Nombre: {project_name}
 Dominio: {domain}
 Alcance / Contexto Inicial: {context_markdown or project.get('scope', '')}
@@ -52,13 +50,10 @@ Alcance / Contexto Inicial: {context_markdown or project.get('scope', '')}
 REQUERIMIENTO INGRESADO A ANALIZAR:
 {req_text}"""
 
-        try:
-            response = llm.invoke([
-                SystemMessage(content=system_prompt),
-                HumanMessage(content=human_prompt)
-            ])
+    content, source = invoke_llm_with_fallback(system_prompt, human_prompt)
 
-            content = response.content.strip()
+    if content:
+        try:
             if content.startswith("```json"):
                 content = content[7:]
             if content.endswith("```"):
@@ -88,21 +83,38 @@ REQUERIMIENTO INGRESADO A ANALIZAR:
                     )
                 )
 
+            def clean_list(raw, default):
+                if not isinstance(raw, list):
+                    return default
+                res = []
+                for item in raw:
+                    if isinstance(item, dict):
+                        v = item.get("description") or item.get("statement") or item.get("name") or item.get("item") or str(item)
+                        res.append(str(v))
+                    elif item:
+                        res.append(str(item))
+                return res if res else default
+
+            state.is_ai_generated = True
+            state.response_source = source
             state.diagnosis = AnalysisDiagnosis(
                 detected_domain=parsed.get("detected_domain", domain),
-                detected_actors=parsed.get("detected_actors", ["Usuario"]),
-                detected_entities=parsed.get("detected_entities", ["Datos"]),
+                detected_actors=clean_list(parsed.get("detected_actors"), ["Usuario"]),
+                detected_entities=clean_list(parsed.get("detected_entities"), ["Datos"]),
                 extracted_rules=rules,
-                missing_items=parsed.get("missing_items", []),
-                detected_dependencies=parsed.get("detected_dependencies", ["Módulo Principal"])
+                missing_items=clean_list(parsed.get("missing_items"), []),
+                detected_dependencies=clean_list(parsed.get("detected_dependencies"), ["Módulo Principal"]),
+                is_ai_generated=True,
+                response_source=source
             )
             return state
         except Exception as e:
-            print(f"[LLM Analysis Error, falling back to dynamic structural analyzer]: {e}")
+            print(f"[LLM Analysis Parse Error on {source}]: {e}")
 
     # Fully Dynamic Requirement Analyzer (Agnostic to Feature Names & Domains)
+    state.is_ai_generated = False
     text_lower = req_text.lower()
-    
+
     # 1. Dynamic Entity Extraction from text nouns
     words = req_text.split()
     extracted_entities = []
@@ -116,11 +128,26 @@ REQUERIMIENTO INGRESADO A ANALIZAR:
     entities = extracted_entities[:4] if extracted_entities else ["EntidadPrincipal"]
 
     # 2. Dynamic Actor Detection
-    actors = ["Usuario", "Sistema"]
-    if "administrador" in text_lower or "admin" in text_lower:
-        actors.append("Administrador")
-    if "cliente" in text_lower:
-        actors.append("Cliente")
+    actors = []
+    if project.get("actors"):
+        for a in project.get("actors", []):
+            actor_name = a.get("name") if isinstance(a, dict) else str(a)
+            if actor_name and actor_name not in actors:
+                actors.append(actor_name)
+    
+    if not actors:
+        actors = ["Usuario", "Sistema"]
+
+    known_roles = ["administrador", "admin", "cliente", "bibliotecario", "proveedor", "supervisor", "auditor", "medico", "médico", "paciente", "profesor", "alumno"]
+    for role in known_roles:
+        if role in text_lower:
+            formatted_role = role.capitalize()
+            if formatted_role == "Admin":
+                formatted_role = "Administrador"
+            elif formatted_role == "Medico":
+                formatted_role = "Médico"
+            if formatted_role not in actors:
+                actors.append(formatted_role)
 
     # 3. Dynamic Requirement Rules Extraction
     rules = [
@@ -151,13 +178,20 @@ REQUERIMIENTO INGRESADO A ANALIZAR:
     if any(k in text_lower for k in ["modificar", "eliminar", "borrar", "cancelar", "actualizar"]) and not any(k in text_lower for k in ["confirm", "alerta", "advertencia"]) and not any("confirm" in a.lower() for a in state.user_answers):
         missing.append("No se especificó si se requiere una confirmación previa del usuario antes de ejecutar la acción sobre los datos.")
 
+    # Pattern E: Notification / Alert Requirements
+    if any(k in text_lower for k in ["notificar", "alerta", "aviso"]) and not any(k in text_lower for k in ["cuando", "si", "threshold", "umbral"]):
+        missing.append("No se definieron criterios de notificación o alerta para eventos críticos.")
+
     state.diagnosis = AnalysisDiagnosis(
         detected_domain=domain,
         detected_actors=actors,
         detected_entities=entities,
         extracted_rules=rules,
         missing_items=missing,
-        detected_dependencies=[f"Módulo de {entities[0]}"]
+        detected_dependencies=[f"Módulo de {entities[0]}"],
+        is_ai_generated=False
     )
+
+    return state
 
     return state

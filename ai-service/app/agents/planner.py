@@ -1,20 +1,6 @@
 import json
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.messages import SystemMessage, HumanMessage
 from app.state import AgentState
-from app.config import settings
-
-def get_llm():
-    if settings.GOOGLE_API_KEY and settings.GOOGLE_API_KEY != "YOUR_GEMINI_API_KEY_HERE":
-        try:
-            return ChatGoogleGenerativeAI(
-                model=settings.MODEL_NAME,
-                google_api_key=settings.GOOGLE_API_KEY,
-                temperature=0.2
-            )
-        except Exception as e:
-            print(f"[LLM Init Error]: {e}")
-    return None
+from app.llm_provider import invoke_llm_with_fallback
 
 def planner_agent(state: AgentState) -> AgentState:
     """
@@ -36,21 +22,15 @@ def planner_agent(state: AgentState) -> AgentState:
         state.is_sufficient = False
         state.status = "NEEDS_CLARIFICATION"
 
-        llm = get_llm()
-        if llm:
-            system_prompt = """Eres el Agente Planificador del sistema ReqRefiner.
+        system_prompt = """Eres el Agente Planificador del sistema ReqRefiner.
 Dada una lista de vacíos funcionales o ambigüedades en un requerimiento, genera preguntas de aclaración profesionales, concisas y directas para el usuario.
 Responde ÚNICAMENTE con un arreglo JSON de cadenas con las preguntas. Ejemplo: ["¿Pregunta 1?", "¿Pregunta 2?"]"""
 
-            human_prompt = f"Dominio: {diag.detected_domain}\nVacíos funcionales: {json.dumps(diag.missing_items)}"
+        human_prompt = f"Dominio: {diag.detected_domain}\nVacíos funcionales: {json.dumps(diag.missing_items)}"
 
+        content, source = invoke_llm_with_fallback(system_prompt, human_prompt)
+        if content:
             try:
-                response = llm.invoke([
-                    SystemMessage(content=system_prompt),
-                    HumanMessage(content=human_prompt)
-                ])
-
-                content = response.content.strip()
                 if content.startswith("```json"):
                     content = content[7:]
                 if content.endswith("```"):
@@ -58,10 +38,11 @@ Responde ÚNICAMENTE con un arreglo JSON de cadenas con las preguntas. Ejemplo: 
                 content = content.strip()
 
                 questions = json.loads(content)
-                state.clarification_questions = questions
-                return state
+                if isinstance(questions, list):
+                    state.clarification_questions = [str(q) for q in questions]
+                    return state
             except Exception as e:
-                print(f"[LLM Planner Error, using dynamic transformation]: {e}")
+                print(f"[LLM Planner Parse Error on {source}]: {e}")
 
         # Fallback dynamic questions generator
         questions = []

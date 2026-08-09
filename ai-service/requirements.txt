@@ -12,3 +12,4 @@ psycopg2-binary>=2.9.9
 pgvector>=0.2.5
 python-dotenv>=1.0.1
 requests>=2.31.0
+langchain-ollama>=0.1.0
