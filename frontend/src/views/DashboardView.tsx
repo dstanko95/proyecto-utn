@@ -16,6 +16,7 @@ import {
   FolderKanban
 } from 'lucide-react';
 import { api } from '../api';
+import { getGeneralDescription, formatDateTime } from '../utils/requirementUtils';
 
 interface DashboardViewProps {
   projectName: string;
@@ -229,21 +230,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         ) : (
           <div className="space-y-2">
-            {requirements.map((req) => (
-              <div key={req.id} className="flex items-center justify-between p-3 border border-slate-100 rounded-lg bg-slate-50/50">
-                <div className="flex items-center gap-3">
-                  <span className="bg-blue-100 text-blue-700 font-mono text-xs px-2 py-0.5 rounded font-bold">
-                    {req.code}
-                  </span>
-                  <span className="text-xs font-semibold text-slate-800">{req.title}</span>
+            {requirements.map((req) => {
+              const generalDesc = getGeneralDescription(req);
+              const dateTime = formatDateTime(req.updatedAt || req.createdAt);
+              return (
+                <div key={req.id} className="flex items-center justify-between p-3 border border-slate-100 rounded-lg bg-slate-50/50">
+                  <div className="flex items-center gap-3">
+                    <span className="bg-blue-100 text-blue-700 font-mono text-xs px-2 py-0.5 rounded font-bold shrink-0">
+                      {req.code}
+                    </span>
+                    <span className="text-xs font-semibold text-slate-800 line-clamp-1">{generalDesc}</span>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className="text-[11px] text-slate-400 font-medium">
+                      {dateTime.full}
+                    </span>
+                    <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                      req.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                    }`}>
+                      {req.status === 'APPROVED' ? 'APROBADO' : req.status}
+                    </span>
+                  </div>
                 </div>
-                <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
-                  req.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                }`}>
-                  {req.status}
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

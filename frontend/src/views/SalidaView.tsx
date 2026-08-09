@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { CheckCircle2, FileText, GitBranch, History, Sparkles, Database, Layers, ArrowRight, FileCheck } from 'lucide-react';
+import { CheckCircle2, FileText, GitBranch, History, Sparkles, Database, Layers, ArrowRight, FileCheck, AlertTriangle } from 'lucide-react';
 import { api } from '../api';
+import { getGeneralDescription } from '../utils/requirementUtils';
 
 interface SalidaViewProps {
   activeProject: any;
@@ -16,14 +17,20 @@ export default function SalidaView({ activeProject, aiResult, onNewRequirement, 
 
   const markdownContent = aiResult?.refined_markdown || '';
   const mermaidDiagram = aiResult?.mermaid_diagram || '';
+  const isFallbackMode = aiResult?.is_ai_generated === false;
 
   const handleApprove = async () => {
     if (!markdownContent) return;
     setIsApproving(true);
     try {
+      const generalDesc = getGeneralDescription({
+        versions: [{ contentMarkdown: markdownContent }],
+        description: aiResult?.requirement_text || markdownContent
+      });
+
       const createdReq = await api.createRequirement(
         'RF01',
-        'Requerimiento Funcional Refinado',
+        generalDesc,
         markdownContent,
         activeProject ? activeProject.id : '',
         mermaidDiagram
@@ -121,6 +128,51 @@ export default function SalidaView({ activeProject, aiResult, onNewRequirement, 
           </div>
         </div>
       </div>
+
+      {/* Response Engine Source Badge */}
+      {aiResult?.response_source?.startsWith('OLLAMA_LOCAL') ? (
+        <div className="rounded-xl bg-indigo-50 border border-indigo-200 p-4 flex items-start gap-3 text-indigo-900 shadow-xs">
+          <Layers className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
+              <h4 className="text-xs font-bold text-indigo-950 uppercase tracking-wider">
+                Documentación Generada por LLM Local ({aiResult.response_source.replace('OLLAMA_LOCAL', '').replace(/[()]/g, '').trim() || 'Ollama'})
+              </h4>
+            </div>
+            <p className="text-xs text-indigo-800 mt-1 leading-relaxed">
+              La especificación técnica y el diagrama Mermaid fueron generados localmente mediante tu servidor de Ollama.
+            </p>
+          </div>
+        </div>
+      ) : isFallbackMode ? (
+        <div className="rounded-xl bg-amber-50 border border-amber-300 p-4 flex items-start gap-3 text-amber-900 shadow-xs">
+          <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <h4 className="text-xs font-bold text-amber-950 uppercase tracking-wider">
+              Documentación Generada por Motor Dinámico de Respaldo Local (Sin LLM)
+            </h4>
+            <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+              Atención: La especificación técnica y el diagrama no fueron generados mediante la API de Inteligencia Artificial (Gemini / Ollama no disponibles). El documento fue estructurado utilizando el motor dinámico de respaldo.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-xl bg-emerald-50/90 border border-emerald-200 p-4 flex items-start gap-3 text-emerald-950 shadow-xs">
+          <Sparkles className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              <h4 className="text-xs font-bold text-emerald-950 uppercase tracking-wider">
+                Documentación Generada por Gemini 2.0 Flash (Google AI Cloud)
+              </h4>
+            </div>
+            <p className="text-xs text-emerald-800 mt-1 leading-relaxed">
+              La especificación técnica refinada y el diagrama Mermaid fueron procesados en vivo mediante Gemini API.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Celebration & Navigation Banner on Approval */}
       {isApproved && (

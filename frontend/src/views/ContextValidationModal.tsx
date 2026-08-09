@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, Brain, CheckCircle2, ShieldCheck, ArrowLeft } from 'lucide-react';
+import { Sparkles, Brain, CheckCircle2, ShieldCheck, ArrowLeft, AlertTriangle } from 'lucide-react';
 import { api } from '../api';
 
 interface ContextValidationModalProps {
@@ -165,17 +165,50 @@ Acceso web responsive con notificaciones automáticas.`}
             </form>
           ) : (
             <div className="space-y-5 animate-fade-in">
-              <div className="rounded-xl bg-emerald-50/70 border border-emerald-200/80 p-4 flex items-start gap-3">
-                <Brain className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                <div>
-                  <h4 className="text-xs font-bold text-emerald-950 uppercase tracking-wider">
-                    Interpretación de Dominio por el Agente Analizador
-                  </h4>
-                  <p className="text-xs text-emerald-800 mt-0.5">
-                    Por favor revisa el resumen generado. Al confirmar, este contexto quedará fijado para el análisis de requerimientos futuros.
-                  </p>
+              {/* Response Engine Source Badge */}
+              {aiContextAnalysis?.response_source?.startsWith('OLLAMA_LOCAL') ? (
+                <div className="rounded-xl bg-indigo-50 border border-indigo-200 p-4 flex items-start gap-3 text-indigo-900 shadow-xs">
+                  <Brain className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
+                      <h4 className="text-xs font-bold text-indigo-950 uppercase tracking-wider">
+                        Respuesta Generada por LLM Local ({aiContextAnalysis.response_source.replace('OLLAMA_LOCAL', '').replace(/[()]/g, '').trim() || 'Ollama'})
+                      </h4>
+                    </div>
+                    <p className="text-xs text-indigo-800 leading-relaxed">
+                      El análisis fue procesado exitosamente en tu máquina mediante el modelo local de Ollama (Respaldo activo ante indisponibilidad de Gemini Cloud).
+                    </p>
+                  </div>
                 </div>
-              </div>
+              ) : aiContextAnalysis?.is_ai_generated === false ? (
+                <div className="rounded-xl bg-amber-50 border border-amber-300 p-4 flex items-start gap-3 text-amber-900 shadow-xs">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <h4 className="text-xs font-bold text-amber-950 uppercase tracking-wider">
+                      Respuesta Generada por Motor Dinámico de Respaldo Local (Sin LLM)
+                    </h4>
+                    <p className="text-xs text-amber-800 leading-relaxed">
+                      Atención: El análisis de contexto no pudo conectarse con la API de Inteligencia Artificial (Gemini API / Ollama no disponibles) y se procesó utilizando el motor de análisis estructural dinámico.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-xl bg-emerald-50/90 border border-emerald-200 p-4 flex items-start gap-3 text-emerald-950 shadow-xs">
+                  <Sparkles className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <h4 className="text-xs font-bold text-emerald-950 uppercase tracking-wider">
+                        Respuesta Generada por Gemini 2.0 Flash (Google AI Cloud)
+                      </h4>
+                    </div>
+                    <p className="text-xs text-emerald-800 leading-relaxed">
+                      El análisis fue procesado en vivo mediante la API oficial de Inteligencia Artificial de Google.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Dominio & Resumen */}
               <div className="rounded-xl border border-slate-200 p-4 bg-slate-50/50 space-y-3">

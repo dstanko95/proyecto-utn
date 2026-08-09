@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertCircle, Bot, User, Sparkles, ArrowRight, HelpCircle } from 'lucide-react';
+import { AlertCircle, Bot, User, Sparkles, ArrowRight, HelpCircle, AlertTriangle } from 'lucide-react';
 import { api } from '../api';
 
 interface ProcesamientoViewProps {
@@ -27,6 +27,8 @@ export default function ProcesamientoView({
     extracted_rules: [],
     missing_items: [],
   };
+
+  const isFallbackMode = aiState?.is_ai_generated === false || diagnosis?.is_ai_generated === false;
 
   const questions: string[] = aiState?.clarification_questions || [];
 
@@ -81,6 +83,51 @@ export default function ProcesamientoView({
           </div>
         </div>
       </div>
+
+      {/* Response Engine Source Badge */}
+      {aiState?.response_source?.startsWith('OLLAMA_LOCAL') || diagnosis?.response_source?.startsWith('OLLAMA_LOCAL') ? (
+        <div className="rounded-xl bg-indigo-50 border border-indigo-200 p-4 flex items-start gap-3 text-indigo-900 shadow-xs">
+          <Bot className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
+              <h4 className="text-xs font-bold text-indigo-950 uppercase tracking-wider">
+                Análisis Generado por LLM Local ({aiState?.response_source?.replace('OLLAMA_LOCAL', '').replace(/[()]/g, '').trim() || diagnosis?.response_source?.replace('OLLAMA_LOCAL', '').replace(/[()]/g, '').trim() || 'Ollama'})
+              </h4>
+            </div>
+            <p className="text-xs text-indigo-800 mt-1 leading-relaxed">
+              El análisis y las preguntas de aclaración fueron procesadas en tu PC mediante el modelo local de Ollama (Respaldo activo).
+            </p>
+          </div>
+        </div>
+      ) : isFallbackMode ? (
+        <div className="rounded-xl bg-amber-50 border border-amber-300 p-4 flex items-start gap-3 text-amber-900 shadow-xs">
+          <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <h4 className="text-xs font-bold text-amber-950 uppercase tracking-wider">
+              Análisis Generado por Motor Dinámico de Respaldo Local (Sin LLM)
+            </h4>
+            <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+              Atención: La respuesta no fue generada mediante API de Inteligencia Artificial (Gemini / Ollama no disponibles). El análisis fue procesado utilizando el motor dinámico de respaldo.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-xl bg-emerald-50/90 border border-emerald-200 p-4 flex items-start gap-3 text-emerald-950 shadow-xs">
+          <Sparkles className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              <h4 className="text-xs font-bold text-emerald-950 uppercase tracking-wider">
+                Análisis Generado por Gemini 2.0 Flash (Google AI Cloud)
+              </h4>
+            </div>
+            <p className="text-xs text-emerald-800 mt-1 leading-relaxed">
+              El análisis y las preguntas de aclaración fueron procesados en vivo mediante la API de Inteligencia Artificial de Google.
+            </p>
+          </div>
+        </div>
+      )}
 
       {errorMsg && (
         <div className="rounded-lg bg-red-50 p-4 border border-red-200 text-sm text-red-700 font-medium">

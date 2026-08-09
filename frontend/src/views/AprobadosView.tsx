@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { FileCheck, Download, Layers, BookOpen, ChevronDown, ChevronUp, Sparkles, FolderKanban } from 'lucide-react';
 import { api } from '../api';
+import { getGeneralDescription, formatDateTime } from '../utils/requirementUtils';
 
 interface AprobadosViewProps {
   activeProject: any;
@@ -44,7 +45,9 @@ export default function AprobadosView({ activeProject, onNavigateToEntrada }: Ap
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `${req.code}_${req.title.replace(/\s+/g, '_')}.md`);
+    const generalDesc = getGeneralDescription(req);
+    const safeTitle = (generalDesc || 'Requerimiento').slice(0, 30).replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+    link.setAttribute('download', `${req.code}_${safeTitle}.md`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -115,6 +118,9 @@ export default function AprobadosView({ activeProject, onNavigateToEntrada }: Ap
             const contentMarkdown = latestVersion ? latestVersion.contentMarkdown : req.description;
             const mermaidDiagram = latestVersion ? latestVersion.mermaidDiagram : null;
 
+            const generalDesc = getGeneralDescription(req);
+            const dateTime = formatDateTime(req.updatedAt || req.createdAt);
+
             return (
               <div key={req.id} className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden transition-all">
                 {/* Header Row */}
@@ -127,9 +133,9 @@ export default function AprobadosView({ activeProject, onNavigateToEntrada }: Ap
                       {req.code}
                     </span>
                     <div>
-                      <h3 className="text-sm font-bold text-slate-800">{req.title}</h3>
+                      <h3 className="text-sm font-bold text-slate-800">{generalDesc}</h3>
                       <p className="text-[11px] text-slate-400 mt-0.5">
-                        Aprobado el {new Date(req.updatedAt).toLocaleDateString()} • Versión {latestVersion?.versionNumber || 'v1.0'}
+                        Aprobado el {dateTime.full} • Versión {latestVersion?.versionNumber || 'v1.0'}
                       </p>
                     </div>
                   </div>
