@@ -89,3 +89,15 @@ model Dependency {
   targetReq      Requirement @relation("TargetDependency", fields: [targetReqId], references: [id], onDelete: Cascade)
   dependencyType String      @default("REQUIRES")
 }
+
+model GlobalMemoryPattern {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  domain         String   @db.VarChar(100)
+  patternType    String   @map("pattern_type") @db.VarChar(50)
+  ruleStatement  String   @map("rule_statement")
+  frequencyCount Int?     @default(1) @map("frequency_count")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@map("global_memory_patterns")
+}
+
