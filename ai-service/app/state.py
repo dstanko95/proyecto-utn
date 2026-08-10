@@ -1,5 +1,6 @@
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
+from app.config import settings
 
 class RuleOrigin(BaseModel):
     rule_code: str
@@ -15,14 +16,14 @@ class AnalysisDiagnosis(BaseModel):
     missing_items: List[str] = Field(default_factory=list)
     detected_dependencies: List[str] = Field(default_factory=list)
     is_ai_generated: bool = True
-    response_source: str = "GEMINI_CLOUD"
+    response_source: str = Field(default_factory=lambda: f"GEMINI_CLOUD ({settings.MODEL_NAME})")
 
 class AgentState(BaseModel):
     requirement_text: str
     project_context: Dict[str, Any] = Field(default_factory=dict)
     user_answers: List[str] = Field(default_factory=list)
     is_ai_generated: bool = True
-    response_source: str = "GEMINI_CLOUD"
+    response_source: str = Field(default_factory=lambda: f"GEMINI_CLOUD ({settings.MODEL_NAME})")
     
     # Diagnosis from Analyzer
     diagnosis: Optional[AnalysisDiagnosis] = None
@@ -35,6 +36,8 @@ class AgentState(BaseModel):
     refined_markdown: Optional[str] = None
     mermaid_diagram: Optional[str] = None
     gherkin_criteria: List[str] = Field(default_factory=list)
+    requirement_code: str = "RF01"
+    version_number: str = "1.0"
     
     # Evaluation
     evaluation_conflicts: List[str] = Field(default_factory=list)

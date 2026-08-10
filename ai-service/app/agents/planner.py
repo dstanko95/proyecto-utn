@@ -1,6 +1,7 @@
 import json
 from app.state import AgentState
 from app.llm_provider import invoke_llm_with_fallback
+from app.json_parser import parse_llm_json
 
 def planner_agent(state: AgentState) -> AgentState:
     """
@@ -28,19 +29,21 @@ Responde ÚNICAMENTE con un arreglo JSON de cadenas con las preguntas. Ejemplo: 
 
         human_prompt = f"Dominio: {diag.detected_domain}\nVacíos funcionales: {json.dumps(diag.missing_items)}"
 
-        content, source = invoke_llm_with_fallback(system_prompt, human_prompt)
+        content, source = invoke_llm_with_fallback(system_prompt, human_prompt, caller_context="planner_agent")
         if content:
             try:
-                if content.startswith("```json"):
-                    content = content[7:]
-                if content.endswith("```"):
-                    content = content[:-3]
-                content = content.strip()
-
-                questions = json.loads(content)
+                questions = parse_llm_json(content)
                 if isinstance(questions, list):
-                    state.clarification_questions = [str(q) for q in questions]
-                    return state
+                    clean_q = []
+                    for q in questions:
+                        if isinstance(q, str):
+                            clean_q.append(q)
+                        elif isinstance(q, dict):
+                            val = q.get("question") or q.get("statement") or q.get("text") or str(q)
+                            clean_q.append(str(val))
+                    if clean_q:
+                        state.clarification_questions = clean_q
+                        return state
             except Exception as e:
                 print(f"[LLM Planner Parse Error on {source}]: {e}")
 

@@ -4,20 +4,8 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from app.state import AgentState, AnalysisDiagnosis, RuleOrigin
 from app.config import settings
 from app.vectorstore.memory import memory_store
-
-def get_llm():
-    if settings.GOOGLE_API_KEY and settings.GOOGLE_API_KEY != "YOUR_GEMINI_API_KEY_HERE":
-        try:
-            return ChatGoogleGenerativeAI(
-                model=settings.MODEL_NAME,
-                google_api_key=settings.GOOGLE_API_KEY,
-                temperature=0.2
-            )
-        except Exception as e:
-            print(f"[LLM Init Error]: {e}")
-    return None
-
 from app.llm_provider import invoke_llm_with_fallback
+from app.json_parser import parse_llm_json
 
 def analyzer_agent(state: AgentState) -> AgentState:
     """
@@ -50,64 +38,58 @@ Alcance / Contexto Inicial: {context_markdown or project.get('scope', '')}
 REQUERIMIENTO INGRESADO A ANALIZAR:
 {req_text}"""
 
-    content, source = invoke_llm_with_fallback(system_prompt, human_prompt)
+    content, source = invoke_llm_with_fallback(system_prompt, human_prompt, caller_context="analyzer_agent")
 
     if content:
         try:
-            if content.startswith("```json"):
-                content = content[7:]
-            if content.endswith("```"):
-                content = content[:-3]
-            content = content.strip()
-
-            parsed = json.loads(content)
-
-            rules = [
-                RuleOrigin(
-                    rule_code=r.get("rule_code", f"RN0{i+1}"),
-                    statement=r.get("statement", ""),
-                    rule_type=r.get("rule_type", "EXPLICIT"),
-                    source_origin="Texto ingresado por usuario"
-                )
-                for i, r in enumerate(parsed.get("extracted_rules", []))
-            ]
-
-            similar_rules = memory_store.query_similar_rules(domain, req_text)
-            for i, s in enumerate(similar_rules):
-                rules.append(
+            parsed = parse_llm_json(content)
+            if parsed and isinstance(parsed, dict):
+                rules = [
                     RuleOrigin(
-                        rule_code=f"RN_MEM_{i+1}",
-                        statement=s["rule_statement"],
-                        rule_type="SUGGESTED",
-                        source_origin="Memoria Persistente Global (pgvector)"
+                        rule_code=r.get("rule_code", f"RN0{i+1}"),
+                        statement=r.get("statement", ""),
+                        rule_type=r.get("rule_type", "EXPLICIT"),
+                        source_origin="Texto ingresado por usuario"
                     )
+                    for i, r in enumerate(parsed.get("extracted_rules", []))
+                ]
+
+                similar_rules = memory_store.query_similar_rules(domain, req_text)
+                for i, s in enumerate(similar_rules):
+                    rules.append(
+                        RuleOrigin(
+                            rule_code=f"RN_MEM_{i+1}",
+                            statement=s["rule_statement"],
+                            rule_type="SUGGESTED",
+                            source_origin="Memoria Persistente Global (pgvector)"
+                        )
+                    )
+
+                def clean_list(raw, default):
+                    if not isinstance(raw, list):
+                        return default
+                    res = []
+                    for item in raw:
+                        if isinstance(item, dict):
+                            v = item.get("description") or item.get("statement") or item.get("name") or item.get("item") or str(item)
+                            res.append(str(v))
+                        elif item:
+                            res.append(str(item))
+                    return res if res else default
+
+                state.is_ai_generated = True
+                state.response_source = source
+                state.diagnosis = AnalysisDiagnosis(
+                    detected_domain=parsed.get("detected_domain", domain),
+                    detected_actors=clean_list(parsed.get("detected_actors"), ["Usuario"]),
+                    detected_entities=clean_list(parsed.get("detected_entities"), ["Datos"]),
+                    extracted_rules=rules,
+                    missing_items=clean_list(parsed.get("missing_items"), []),
+                    detected_dependencies=clean_list(parsed.get("detected_dependencies"), ["Módulo Principal"]),
+                    is_ai_generated=True,
+                    response_source=source
                 )
-
-            def clean_list(raw, default):
-                if not isinstance(raw, list):
-                    return default
-                res = []
-                for item in raw:
-                    if isinstance(item, dict):
-                        v = item.get("description") or item.get("statement") or item.get("name") or item.get("item") or str(item)
-                        res.append(str(v))
-                    elif item:
-                        res.append(str(item))
-                return res if res else default
-
-            state.is_ai_generated = True
-            state.response_source = source
-            state.diagnosis = AnalysisDiagnosis(
-                detected_domain=parsed.get("detected_domain", domain),
-                detected_actors=clean_list(parsed.get("detected_actors"), ["Usuario"]),
-                detected_entities=clean_list(parsed.get("detected_entities"), ["Datos"]),
-                extracted_rules=rules,
-                missing_items=clean_list(parsed.get("missing_items"), []),
-                detected_dependencies=clean_list(parsed.get("detected_dependencies"), ["Módulo Principal"]),
-                is_ai_generated=True,
-                response_source=source
-            )
-            return state
+                return state
         except Exception as e:
             print(f"[LLM Analysis Parse Error on {source}]: {e}")
 
@@ -191,7 +173,5 @@ REQUERIMIENTO INGRESADO A ANALIZAR:
         detected_dependencies=[f"Módulo de {entities[0]}"],
         is_ai_generated=False
     )
-
-    return state
 
     return state

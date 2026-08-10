@@ -67,12 +67,9 @@ def build_dynamic_mermaid_diagram(req_text: str, user_answers: list = None) -> s
     if node_ids:
         # Nodo inicial (proceso) – azul
         mermaid_lines.append(f"    style {node_ids[0]} fill:#3b82f6,stroke:#3b82f6,stroke-width:2px")
-        # Nodo final (decisión) – verde
-        mermaid_lines.append(f"    style {node_ids[-1]} fill:#10b981,stroke:#10b981,stroke-width:2px")
-
     return "\n".join(mermaid_lines)
 
-def build_fully_dynamic_markdown_spec(req_text: str, user_answers: list, diag) -> str:
+def build_fully_dynamic_markdown_spec(req_text: str, user_answers: list, diag, req_code: str = "RF01", version_num: str = "1.0") -> tuple:
     """
     Generador de Especificación Profesional 100% Dinámico:
     Procesa cualquier requerimiento (sin importar el módulo o dominio) y construye:
@@ -151,6 +148,14 @@ def build_fully_dynamic_markdown_spec(req_text: str, user_answers: list, diag) -
             ca_list.append(f"{ca_title}: Dado el sistema, cuando evalúa {ans}, entonces cumple el parámetro.")
             ca_idx += 1
 
+    # Calculate next RF codes for modular suggestions
+    try:
+        num_part = int(re.sub(r'\D', '', req_code))
+    except Exception:
+        num_part = 1
+    next_rf1 = f"RF{num_part + 1:02d}"
+    next_rf2 = f"RF{num_part + 2:02d}"
+
     # 5. Recommendations & Architecture Suggestions (Section 7)
     recommendations_doc = f"""## 7. Recomendaciones y Decisiones de Negocio Pendientes (Agente Evaluador)
 
@@ -162,8 +167,8 @@ Se recomienda revisar y definir de forma explícita:
 
 ### 📐 Desacoplamiento de Módulos y Arquitectura Sugerida
 Para mantener cada requerimiento enfocado en una sola responsabilidad (ISO/IEC/IEEE 29148):
-* Mantener este requerimiento ({title}) acotado a su flujo directo.
-* Separar reglas ajenas de reportes, alertas globales o dashboards a sus propios RFs independientes.
+* Mantener este requerimiento ({req_code} - {title}) acotado a su flujo directo.
+* Separar reglas ajenas de reportes, alertas globales o dashboards a sus propios RFs independientes (ej: {next_rf1}, {next_rf2}).
 """
 
     # Build actors table with description column
@@ -179,11 +184,11 @@ Para mantener cada requerimiento enfocado en una sola responsabilidad (ISO/IEC/I
     for e in entities:
         entities_doc += f"| **{e}** | Descripción breve de la entidad. |\n"
 
-    markdown_doc = f"""# RF01 - {title}
+    markdown_doc = f"""# {req_code} - {title}
 
 **Estado:** Refinado
 **Prioridad:** Alta
-**Versión:** 1.2
+**Versión:** {version_num}
 **Dominio:** {domain}
 
 ## 1. Descripción
@@ -216,6 +221,7 @@ Para mantener cada requerimiento enfocado en una sola responsabilidad (ISO/IEC/I
     return markdown_doc, ca_list
 
 from app.llm_provider import invoke_llm_with_fallback
+from app.json_parser import parse_llm_json
 
 def clean_mermaid_syntax(mermaid_code: str) -> str:
     if not mermaid_code:
@@ -249,6 +255,15 @@ def generator_agent(state: AgentState) -> AgentState:
     diag = state.diagnosis
     domain = diag.detected_domain if diag else "General"
 
+    project_context = state.project_context or {}
+    req_code = project_context.get("requirementCode") or project_context.get("requirement_code") or "RF01"
+    version_num = str(project_context.get("versionNumber") or project_context.get("version") or "1.0")
+    if version_num.lower().startswith('v'):
+        version_num = version_num[1:]
+
+    state.requirement_code = req_code
+    state.version_number = version_num
+
     system_prompt = f"""Eres el Agente Generador del sistema ReqRefiner.
 Tu función es transformar cualquier requerimiento bruto ingresado por el usuario + sus respuestas de aclaración en una ESPECIFICACIÓN FUNCIONAL DE SOFTWARE DE NIVEL PROFESIONAL (Estándar IEEE 29148 / PDD).
 
@@ -258,34 +273,37 @@ DIRECTIVAS CRÍTICAS DE ENRIQUECIMIENTO Y ESTRUCTURA:
 3. DESACOPLA REGLAS AJENAS: Elimina del documento cualquier regla o referencia que pertenezca a otros módulos o requerimientos futuros.
 4. INCLUYE SECCIÓN DE RECOMENDACIONES Y DESGLOSE DE REQs FUTUROS: Agrega un apartado con decisiones de negocio aún abiertas y propone la arquitectura modular de RFs futuros derivados.
 5. REGLA CRÍTICA SINTAXIS MERMAID: En 'mermaid_diagram', NUNCA utilices paréntesis '(' o ')' ni comillas dentro de los textos o nombres de los nodos (ejemplo: NUNCA escribas F{{Determinar rol (bibliotecario o usuario)}}, debes escribir F{{Determinar rol - bibliotecario o usuario}} sin paréntesis).
+6. CÓDIGO Y VERSIÓN MANDATORIOS: Usa OBLIGATORIAMENTE el código '{req_code}' en el título principal (# {req_code} - [Título del Requerimiento]) y la versión '{version_num}' en los metadatos (**Versión:** {version_num}).
 
 Estructura JSON estricta esperada:
 {{
-  "refined_markdown": "# RF01 - [Título del Requerimiento]\\n\\n**Estado:** Refinado\\n**Prioridad:** Alta\\n**Versión:** 1.2\\n\\n## 1. Descripción\\n...\\n\\n## 2. Flujo principal\\n1. ...\\n2. ...\\n\\n## 3. Actores\\n### Actor principal\\n* **[Nombre Actor]:** ...\\n### Sistema\\n...\\n\\n## 4. Entidades involucradas\\n* **[Entidad 1]:** ...\\n* **[Entidad 2]:** ...\\n\\n## 5. Reglas de negocio\\n### RN01 - ...\\n...\\n### RN02 - ...\\n...\\n\\n## 6. Criterios de aceptación\\n### CA01 - ...\\n**Dado** ...\\n**cuando** ...\\n**entonces** ...\\n\\n## 7. Recomendaciones y Decisiones Pendientes (Agente Evaluador)\\n### Decisión de negocio pendiente:\\n...\\n### Arquitectura Modular Sugerida para Próximos RFs:\\n- RF02 - ...\\n- RF03 - ...",
+  "refined_markdown": "# {req_code} - [Título del Requerimiento]\\n\\n**Estado:** Refinado\\n**Prioridad:** Alta\\n**Versión:** {version_num}\\n\\n## 1. Descripción\\n...\\n\\n## 2. Flujo principal\\n1. ...\\n2. ...\\n\\n## 3. Actores\\n### Actor principal\\n* **[Nombre Actor]:** ...\\n### Sistema\\n...\\n\\n## 4. Entidades involucradas\\n* **[Entidad 1]:** ...\\n* **[Entidad 2]:** ...\\n\\n## 5. Reglas de negocio\\n### RN01 - ...\\n...\\n### RN02 - ...\\n...\\n\\n## 6. Criterios de aceptación\\n### CA01 - ...\\n**Dado** ...\\n**cuando** ...\\n**entonces** ...\\n\\n## 7. Recomendaciones y Decisiones Pendientes (Agente Evaluador)\\n### Decisión de negocio pendiente:\\n...\\n### Arquitectura Modular Sugerida para Próximos RFs:\\n- RF... - ...",
   "mermaid_diagram": "Código de diagrama Mermaid (graph TD ...) sin paréntesis dentro de las etiquetas de nodos",
   "gherkin_criteria": ["CA01 - Dado ... cuando ... entonces ...", "CA02 - Dado ... cuando ... entonces ..."]
 }}
 Responde ÚNICAMENTE con el objeto JSON válido sin formato ni código adicional."""
 
     human_prompt = f"""Dominio del Proyecto: {domain}
+Código Asignado: {req_code}
+Versión Asignada: {version_num}
 Texto Ingresado por el Usuario: {state.requirement_text}
 Respuestas de Aclaración del Usuario: {json.dumps(state.user_answers)}
 Entidades Identificadas: {json.dumps(diag.detected_entities if diag else [])}
 Actores Identificados: {json.dumps(diag.detected_actors if diag else [])}"""
 
-    content, source = invoke_llm_with_fallback(system_prompt, human_prompt)
+    content, source = invoke_llm_with_fallback(system_prompt, human_prompt, caller_context="generator_agent")
 
     if content:
         try:
-            if content.startswith("```json"):
-                content = content[7:]
-            if content.endswith("```"):
-                content = content[:-3]
-            content = content.strip()
+            parsed = parse_llm_json(content)
+            if parsed and isinstance(parsed, dict) and parsed.get("refined_markdown"):
+                md = parsed.get("refined_markdown")
+                # Force exact req_code in header if LLM hardcoded RF01
+                md = re.sub(r'^#\s*RF\d+\b', f'# {req_code}', md, count=1, flags=re.MULTILINE)
+                # Force exact version_num if LLM hardcoded 1.2
+                md = re.sub(r'\*\*Versión:\*\*\s*\d+\.\d+', f'**Versión:** {version_num}', md, count=1)
 
-            parsed = json.loads(content)
-            if parsed.get("refined_markdown"):
-                state.refined_markdown = parsed.get("refined_markdown")
+                state.refined_markdown = md
                 raw_mermaid = parsed.get("mermaid_diagram", build_dynamic_mermaid_diagram(state.requirement_text, state.user_answers))
                 state.mermaid_diagram = clean_mermaid_syntax(raw_mermaid)
                 state.gherkin_criteria = parsed.get("gherkin_criteria", [])
@@ -299,7 +317,9 @@ Actores Identificados: {json.dumps(diag.detected_actors if diag else [])}"""
     markdown_doc, ca_list = build_fully_dynamic_markdown_spec(
         state.requirement_text,
         state.user_answers,
-        diag
+        diag,
+        req_code=req_code,
+        version_num=version_num
     )
     
     mermaid_code = build_dynamic_mermaid_diagram(state.requirement_text, state.user_answers)

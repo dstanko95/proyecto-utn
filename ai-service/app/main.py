@@ -125,6 +125,24 @@ def health_check():
     }
 
 from app.llm_provider import invoke_llm_with_fallback
+from app.json_parser import parse_llm_json
+from app.token_logger import token_logger
+
+@app.get("/token-usage")
+def get_token_usage():
+    """
+    Retorna métricas consolidadas del consumo de tokens y la latencia
+    así como el historial reciente de ejecuciones de LLM.
+    """
+    return token_logger.get_summary()
+
+@app.delete("/token-usage")
+def reset_token_usage():
+    """
+    Reinicia los contadores y el historial de consumo de tokens en memoria.
+    """
+    token_logger.reset_summary()
+    return {"message": "Métricas e historial de consumo de tokens reiniciados exitosamente."}
 
 @app.post("/analyze-context")
 def analyze_context(request: ContextAnalyzeRequest):
@@ -146,19 +164,14 @@ Tu tarea es analizar el documento Markdown de Contexto Inicial de un nuevo proye
 
 Responde ÚNICAMENTE con el JSON válido sin código adicional ni formato markdown."""
 
-    content, source = invoke_llm_with_fallback(system_prompt, text)
+    content, source = invoke_llm_with_fallback(system_prompt, text, caller_context="analyze_context_endpoint")
     if content:
         try:
-            if content.startswith("```json"):
-                content = content[7:]
-            if content.endswith("```"):
-                content = content[:-3]
-            content = content.strip()
-
-            parsed = json.loads(content)
-            parsed["is_ai_generated"] = True
-            parsed["response_source"] = source
-            return parsed
+            parsed = parse_llm_json(content)
+            if parsed and isinstance(parsed, dict):
+                parsed["is_ai_generated"] = True
+                parsed["response_source"] = source
+                return parsed
         except Exception as e:
             print(f"[JSON Parse Error on {source}]: {e}")
 
@@ -196,3 +209,4 @@ def learn_rule(request: LearnRequest):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("app.main:app", host="0.0.0.0", port=settings.PORT, reload=True)
+
