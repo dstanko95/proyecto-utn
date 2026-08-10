@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { CheckCircle2, FileText, GitBranch, History, Sparkles, Database, Layers, ArrowRight, FileCheck, AlertTriangle } from 'lucide-react';
 import { api } from '../api';
-import { getGeneralDescription } from '../utils/requirementUtils';
+import { getGeneralDescription, formatGeminiModel } from '../utils/requirementUtils';
+import MermaidViewer from '../components/MermaidViewer';
 
 interface SalidaViewProps {
   activeProject: any;
@@ -19,6 +20,9 @@ export default function SalidaView({ activeProject, aiResult, onNewRequirement, 
   const mermaidDiagram = aiResult?.mermaid_diagram || '';
   const isFallbackMode = aiResult?.is_ai_generated === false;
 
+  const extractedCode = markdownContent.match(/#\s*(RF\d+)/i)?.[1];
+  const reqCode = aiResult?.requirement_code || extractedCode || 'RF01';
+
   const handleApprove = async () => {
     if (!markdownContent) return;
     setIsApproving(true);
@@ -29,7 +33,7 @@ export default function SalidaView({ activeProject, aiResult, onNewRequirement, 
       });
 
       const createdReq = await api.createRequirement(
-        'RF01',
+        reqCode,
         generalDesc,
         markdownContent,
         activeProject ? activeProject.id : '',
@@ -164,7 +168,7 @@ export default function SalidaView({ activeProject, aiResult, onNewRequirement, 
             <div className="flex items-center gap-2">
               <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
               <h4 className="text-xs font-bold text-emerald-950 uppercase tracking-wider">
-                Documentación Generada por Gemini 2.0 Flash (Google AI Cloud)
+                Documentación Generada por {formatGeminiModel(aiResult?.response_source)}
               </h4>
             </div>
             <p className="text-xs text-emerald-800 mt-1 leading-relaxed">
@@ -274,16 +278,7 @@ export default function SalidaView({ activeProject, aiResult, onNewRequirement, 
           )}
 
           {activeTab === 'flowchart' && (
-            <div className="space-y-4">
-              <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-6 flex justify-center">
-                <div className="w-full max-w-2xl rounded-xl bg-white p-6 shadow-xs border border-slate-200 text-center font-mono text-xs text-slate-700 space-y-3">
-                  <span className="text-xs font-bold text-blue-600">Código de Diagrama Mermaid Generado:</span>
-                  <pre className="text-left bg-slate-900 text-slate-100 p-4 rounded-lg overflow-x-auto">
-                    {mermaidDiagram}
-                  </pre>
-                </div>
-              </div>
-            </div>
+            <MermaidViewer chart={mermaidDiagram} title="Diagrama de Flujo (Mermaid)" defaultMode="preview" />
           )}
 
           {activeTab === 'dependencies' && (
@@ -295,7 +290,7 @@ export default function SalidaView({ activeProject, aiResult, onNewRequirement, 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="rounded-lg bg-white p-4 border border-slate-200 shadow-xs">
                   <span className="text-xs font-semibold text-slate-500">Requerimiento</span>
-                  <p className="text-sm font-bold text-slate-800 mt-1">RF01</p>
+                  <p className="text-sm font-bold text-slate-800 mt-1">{reqCode}</p>
                 </div>
                 <div className="rounded-lg bg-white p-4 border border-slate-200 shadow-xs">
                   <span className="text-xs font-semibold text-slate-500">Relación Estructural</span>

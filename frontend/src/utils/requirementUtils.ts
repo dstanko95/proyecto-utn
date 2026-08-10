@@ -63,3 +63,30 @@ export function formatDateTime(dateString: string | Date): { date: string; time:
 
   return { date, time, full };
 }
+
+/**
+ * Formatea dinámicamente el nombre del modelo Gemini utilizado desde el `response_source`
+ * (ej: "GEMINI_CLOUD (gemini-2.5-flash - Key 1)" -> "Gemini 2.5 Flash (Google AI Cloud)")
+ */
+export function formatGeminiModel(source?: string): string {
+  if (!source) return 'Gemini (Google AI Cloud)';
+
+  const match = source.match(/\(([^)]+)\)/);
+  let rawModel = '';
+  if (match) {
+    rawModel = match[1].split(' - ')[0].trim();
+  } else if (!source.startsWith('OLLAMA') && !source.startsWith('DYNAMIC')) {
+    rawModel = source.replace('GEMINI_CLOUD', '').replace(/[()]/g, '').trim();
+  }
+
+  if (!rawModel) {
+    return 'Gemini (Google AI Cloud)';
+  }
+
+  const formatted = rawModel
+    .replace(/^gemini-/i, 'Gemini ')
+    .replace(/-/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+
+  return `${formatted} (Google AI Cloud)`;
+}

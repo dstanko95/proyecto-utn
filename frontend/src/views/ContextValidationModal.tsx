@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Sparkles, Brain, CheckCircle2, ShieldCheck, ArrowLeft, AlertTriangle } from 'lucide-react';
 import { api } from '../api';
+import { formatGeminiModel } from '../utils/requirementUtils';
 
 interface ContextValidationModalProps {
   onClose: () => void;
@@ -200,7 +201,7 @@ Acceso web responsive con notificaciones automáticas.`}
                     <div className="flex items-center gap-2">
                       <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
                       <h4 className="text-xs font-bold text-emerald-950 uppercase tracking-wider">
-                        Respuesta Generada por Gemini 2.0 Flash (Google AI Cloud)
+                        Respuesta Generada por {formatGeminiModel(aiContextAnalysis?.response_source)}
                       </h4>
                     </div>
                     <p className="text-xs text-emerald-800 leading-relaxed">

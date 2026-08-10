@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { AlertCircle, Bot, User, Sparkles, ArrowRight, HelpCircle, AlertTriangle } from 'lucide-react';
 import { api } from '../api';
+import { formatGeminiModel } from '../utils/requirementUtils';
 
 interface ProcesamientoViewProps {
   requirementText: string;
@@ -119,7 +120,7 @@ export default function ProcesamientoView({
             <div className="flex items-center gap-2">
               <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
               <h4 className="text-xs font-bold text-emerald-950 uppercase tracking-wider">
-                Análisis Generado por Gemini 2.0 Flash (Google AI Cloud)
+                Análisis Generado por {formatGeminiModel(aiState?.response_source || diagnosis?.response_source)}
               </h4>
             </div>
             <p className="text-xs text-emerald-800 mt-1 leading-relaxed">

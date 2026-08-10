@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { FileCheck, Download, Layers, BookOpen, ChevronDown, ChevronUp, Sparkles, FolderKanban } from 'lucide-react';
+import { FileCheck, Download, BookOpen, ChevronDown, ChevronUp, Sparkles, FolderKanban } from 'lucide-react';
 import { api } from '../api';
 import { getGeneralDescription, formatDateTime } from '../utils/requirementUtils';
+import MermaidViewer from '../components/MermaidViewer';
 
 interface AprobadosViewProps {
   activeProject: any;
@@ -175,15 +176,7 @@ export default function AprobadosView({ activeProject, onNavigateToEntrada }: Ap
 
                     {/* Mermaid Flowchart */}
                     {mermaidDiagram && (
-                      <div>
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1.5">
-                          <Layers className="h-3.5 w-3.5 text-purple-600" />
-                          Código Diagrama de Flujo (Mermaid)
-                        </h4>
-                        <pre className="rounded-xl bg-slate-900 p-4 text-purple-200 font-mono text-xs overflow-x-auto">
-                          {mermaidDiagram}
-                        </pre>
-                      </div>
+                      <MermaidViewer chart={mermaidDiagram} title="Diagrama de Flujo (Mermaid)" defaultMode="preview" />
                     )}
 
                     {/* Business Rules Catalog */}
