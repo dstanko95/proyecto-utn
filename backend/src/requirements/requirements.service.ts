@@ -64,6 +64,14 @@ export class RequirementsService {
       } catch (e) {}
     }
 
+    const existingCount = await this.prisma.requirement.count({
+      where: { projectId: analyzeDto.projectId },
+    });
+
+    const nextNumber = existingCount + 1;
+    const requirementCode = `RF${String(nextNumber).padStart(2, '0')}`;
+    const versionNumber = '1.0';
+
     const projectContext = {
       name: project.name,
       generalObjective: project.generalObjective,
@@ -71,7 +79,10 @@ export class RequirementsService {
       initialContextMarkdown: project.initialContextMarkdown,
       contextSummary: project.contextSummary,
       actors: project.actors.map(a => a.name),
-      domain: domain
+      domain: domain,
+      requirementCode,
+      versionNumber,
+      existingCount,
     };
 
     const aiResponse = await this.aiService.analyze({
