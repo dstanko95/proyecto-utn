@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { CheckCircle2, FileText, GitBranch, History, Sparkles, Database, Layers, ArrowRight, FileCheck, AlertTriangle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { CheckCircle2, FileText, GitBranch, History, Sparkles, Database, Layers, ArrowRight, FileCheck, AlertTriangle, RotateCcw, HelpCircle } from 'lucide-react';
 import { api } from '../api';
 import { getGeneralDescription, formatGeminiModel } from '../utils/requirementUtils';
 import MermaidViewer from '../components/MermaidViewer';
@@ -9,19 +9,58 @@ interface SalidaViewProps {
   aiResult: any;
   onNewRequirement: () => void;
   onViewApproved?: () => void;
+  onRetryGeneration?: (updatedResult: any) => void;
+  onApproveSuccess?: () => void;
+  onNavigateToProcesamiento?: () => void;
 }
 
-export default function SalidaView({ activeProject, aiResult, onNewRequirement, onViewApproved }: SalidaViewProps) {
+export default function SalidaView({ activeProject, aiResult, onNewRequirement, onViewApproved, onRetryGeneration, onApproveSuccess, onNavigateToProcesamiento }: SalidaViewProps) {
   const [activeTab, setActiveTab] = useState<'markdown' | 'flowchart' | 'dependencies' | 'versions'>('markdown');
   const [isApproving, setIsApproving] = useState(false);
   const [isApproved, setIsApproved] = useState(false);
 
-  const markdownContent = aiResult?.refined_markdown || '';
-  const mermaidDiagram = aiResult?.mermaid_diagram || '';
-  const isFallbackMode = aiResult?.is_ai_generated === false;
+  // Retry & AI state management
+  const [currentAiResult, setCurrentAiResult] = useState(aiResult);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setCurrentAiResult(aiResult);
+  }, [aiResult]);
+
+  const activeResult = currentAiResult || aiResult;
+  const markdownContent = activeResult?.refined_markdown || '';
+  const mermaidDiagram = activeResult?.mermaid_diagram || '';
+  const isFallbackMode = activeResult?.is_ai_generated === false;
 
   const extractedCode = markdownContent.match(/#\s*(RF\d+)/i)?.[1];
-  const reqCode = aiResult?.requirement_code || extractedCode || 'RF01';
+  const reqCode = activeResult?.requirement_code || extractedCode || 'RF01';
+
+  const handleRetry = async () => {
+    const reqText = activeResult?.requirement_text || '';
+    if (!reqText && !activeProject) return;
+
+    setIsRetrying(true);
+    setRetryError(null);
+
+    try {
+      const updated = await api.analyzeRequirement(
+        reqText,
+        activeProject ? activeProject.id : '',
+        activeResult?.user_answers || []
+      );
+
+      setCurrentAiResult(updated);
+      if (onRetryGeneration) {
+        onRetryGeneration(updated);
+      }
+    } catch (err: any) {
+      console.error('Error al reintentar la generación de entregables:', err);
+      setRetryError('No se pudo volver a ejecutar la petición. Asegúrate de que el microservicio de IA esté disponible.');
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   const handleApprove = async () => {
     if (!markdownContent) return;
@@ -29,7 +68,7 @@ export default function SalidaView({ activeProject, aiResult, onNewRequirement, 
     try {
       const generalDesc = getGeneralDescription({
         versions: [{ contentMarkdown: markdownContent }],
-        description: aiResult?.requirement_text || markdownContent
+        description: activeResult?.requirement_text || markdownContent
       });
 
       const createdReq = await api.createRequirement(
@@ -42,43 +81,96 @@ export default function SalidaView({ activeProject, aiResult, onNewRequirement, 
 
       await api.approveRequirement(createdReq.id);
       setIsApproved(true);
+      if (onApproveSuccess) {
+        onApproveSuccess();
+      }
     } catch (e) {
       console.error('Error al aprobar requerimiento:', e);
       setIsApproved(true);
+      if (onApproveSuccess) {
+        onApproveSuccess();
+      }
     } finally {
       setIsApproving(false);
     }
   };
 
-  if (!aiResult || !markdownContent) {
+  if (!activeResult || !markdownContent) {
+    const needsClarification = activeResult?.status === 'NEEDS_CLARIFICATION' || (activeResult?.clarification_questions && activeResult.clarification_questions.length > 0);
+
     return (
       <div className="mx-auto max-w-5xl space-y-6">
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
-                Fase 3: Documentación Funcional
+              <span className={`rounded-full px-3 py-1 text-xs font-semibold ${needsClarification ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800'}`}>
+                {needsClarification ? 'Fase 2: Aclaraciones Pendientes' : 'Fase 3: Documentación Funcional'}
               </span>
-              <h2 className="mt-2 text-2xl font-bold text-slate-800">Sin Entregables Generados</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Aún no has procesado ningún requerimiento con los agentes de IA en este ciclo.
+              <h2 className="mt-2 text-2xl font-bold text-slate-800">
+                {needsClarification ? 'Aclaraciones Requeridas por la IA' : 'Sin Entregables Generados'}
+              </h2>
+              <p className="mt-1 text-sm text-slate-500 leading-relaxed">
+                {needsClarification
+                  ? 'El Agente Planificador identificó vacíos funcionales o ambigüedades en tu requerimiento. Debes responder las preguntas de aclaración en la Fase 2 para que los agentes puedan generar la especificación.'
+                  : 'Aún no has procesado ningún requerimiento con los agentes de IA en este ciclo o la generación falló.'}
               </p>
             </div>
-            <button
-              onClick={onNewRequirement}
-              className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-xs font-semibold text-white hover:bg-blue-700 shadow-sm transition-all cursor-pointer"
-            >
-              <Sparkles className="h-4 w-4" />
-              Procesar Requerimiento en Fase 1
-            </button>
+            <div className="flex items-center gap-3 shrink-0">
+              {needsClarification && onNavigateToProcesamiento && (
+                <button
+                  onClick={onNavigateToProcesamiento}
+                  className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-xs font-semibold text-white hover:bg-blue-700 shadow-sm transition-all cursor-pointer"
+                >
+                  <HelpCircle className="h-4 w-4" />
+                  <span>Ir a Fase 2: Responder Preguntas</span>
+                </button>
+              )}
+              {activeResult?.requirement_text && (
+                <button
+                  onClick={handleRetry}
+                  disabled={isRetrying}
+                  className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-xs transition-all cursor-pointer"
+                >
+                  <RotateCcw className={`h-4 w-4 text-blue-600 ${isRetrying ? 'animate-spin' : ''}`} />
+                  <span>{isRetrying ? 'Reintentando...' : 'Reintentar Generación'}</span>
+                </button>
+              )}
+              <button
+                onClick={onNewRequirement}
+                className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-xs transition-all cursor-pointer"
+              >
+                <Sparkles className="h-4 w-4 text-blue-600" />
+                <span>Cargar Requerimiento en Fase 1</span>
+              </button>
+            </div>
           </div>
         </div>
+
+        {retryError && (
+          <div className="rounded-lg bg-red-50 p-4 border border-red-200 text-sm text-red-700 font-medium">
+            {retryError}
+          </div>
+        )}
       </div>
     );
   }
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
+      {retryError && (
+        <div className="rounded-xl bg-red-50 p-4 border border-red-200 text-xs font-medium text-red-700 flex items-center justify-between shadow-xs">
+          <span>{retryError}</span>
+          <button
+            onClick={handleRetry}
+            disabled={isRetrying}
+            className="flex items-center gap-1.5 font-bold text-red-800 hover:text-red-950 underline cursor-pointer"
+          >
+            <RotateCcw className={`w-3.5 h-3.5 ${isRetrying ? 'animate-spin' : ''}`} />
+            <span>Reintentar ahora</span>
+          </button>
+        </div>
+      )}
+
       {/* Header Banner */}
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -97,6 +189,15 @@ export default function SalidaView({ activeProject, aiResult, onNewRequirement, 
           </div>
 
           <div className="flex items-center gap-3">
+            <button
+              onClick={handleRetry}
+              disabled={isRetrying || isApproving}
+              className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 shadow-xs cursor-pointer transition-all"
+              title="Reejecutar la petición a los agentes de IA para regenerar la especificación y el diagrama"
+            >
+              <RotateCcw className={`h-4 w-4 text-slate-600 ${isRetrying ? 'animate-spin text-blue-600' : ''}`} />
+              <span>{isRetrying ? 'Reintentando...' : 'Reintentar Generación'}</span>
+            </button>
             <button
               onClick={onNewRequirement}
               className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-xs cursor-pointer"
@@ -134,14 +235,14 @@ export default function SalidaView({ activeProject, aiResult, onNewRequirement, 
       </div>
 
       {/* Response Engine Source Badge */}
-      {aiResult?.response_source?.startsWith('OLLAMA_LOCAL') ? (
+      {activeResult?.response_source?.startsWith('OLLAMA_LOCAL') ? (
         <div className="rounded-xl bg-indigo-50 border border-indigo-200 p-4 flex items-start gap-3 text-indigo-900 shadow-xs">
           <Layers className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
-          <div>
+          <div className="grow">
             <div className="flex items-center gap-2">
               <span className="h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
               <h4 className="text-xs font-bold text-indigo-950 uppercase tracking-wider">
-                Documentación Generada por LLM Local ({aiResult.response_source.replace('OLLAMA_LOCAL', '').replace(/[()]/g, '').trim() || 'Ollama'})
+                Documentación Generada por LLM Local ({activeResult.response_source.replace('OLLAMA_LOCAL', '').replace(/[()]/g, '').trim() || 'Ollama'})
               </h4>
             </div>
             <p className="text-xs text-indigo-800 mt-1 leading-relaxed">
@@ -150,16 +251,26 @@ export default function SalidaView({ activeProject, aiResult, onNewRequirement, 
           </div>
         </div>
       ) : isFallbackMode ? (
-        <div className="rounded-xl bg-amber-50 border border-amber-300 p-4 flex items-start gap-3 text-amber-900 shadow-xs">
-          <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-          <div>
-            <h4 className="text-xs font-bold text-amber-950 uppercase tracking-wider">
-              Documentación Generada por Motor Dinámico de Respaldo Local (Sin LLM)
-            </h4>
-            <p className="text-xs text-amber-800 mt-1 leading-relaxed">
-              Atención: La especificación técnica y el diagrama no fueron generados mediante la API de Inteligencia Artificial (Gemini / Ollama no disponibles). El documento fue estructurado utilizando el motor dinámico de respaldo.
-            </p>
+        <div className="rounded-xl bg-amber-50 border border-amber-300 p-4 flex items-start justify-between gap-3 text-amber-900 shadow-xs">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <h4 className="text-xs font-bold text-amber-950 uppercase tracking-wider">
+                Documentación Generada por Motor Dinámico de Respaldo Local (Sin LLM)
+              </h4>
+              <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+                Atención: La especificación técnica y el diagrama no fueron generados mediante la API de Inteligencia Artificial (Gemini / Ollama no disponibles). El documento fue estructurado utilizando el motor dinámico de respaldo.
+              </p>
+            </div>
           </div>
+          <button
+            onClick={handleRetry}
+            disabled={isRetrying}
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white px-3.5 py-1.5 text-xs font-semibold shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+          >
+            <RotateCcw className={`w-3.5 h-3.5 ${isRetrying ? 'animate-spin' : ''}`} />
+            <span>{isRetrying ? 'Reintentando con IA...' : 'Reintentar Generación con IA'}</span>
+          </button>
         </div>
       ) : (
         <div className="rounded-xl bg-emerald-50/90 border border-emerald-200 p-4 flex items-start gap-3 text-emerald-950 shadow-xs">
@@ -168,7 +279,7 @@ export default function SalidaView({ activeProject, aiResult, onNewRequirement, 
             <div className="flex items-center gap-2">
               <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
               <h4 className="text-xs font-bold text-emerald-950 uppercase tracking-wider">
-                Documentación Generada por {formatGeminiModel(aiResult?.response_source)}
+                Documentación Generada por {formatGeminiModel(activeResult?.response_source)}
               </h4>
             </div>
             <p className="text-xs text-emerald-800 mt-1 leading-relaxed">
@@ -297,8 +408,10 @@ export default function SalidaView({ activeProject, aiResult, onNewRequirement, 
                   <p className="text-sm font-bold text-blue-600 mt-1">Crea & Modifica ➔</p>
                 </div>
                 <div className="rounded-lg bg-white p-4 border border-slate-200 shadow-xs">
-                  <span className="text-xs font-semibold text-slate-500">Módulo Afectado</span>
-                  <p className="text-sm font-bold text-purple-700 mt-1">Grafo del Proyecto</p>
+                  <span className="text-xs font-semibold text-slate-500">Módulos Afectados</span>
+                  <p className="text-sm font-bold text-purple-700 mt-1">
+                    {activeResult?.diagnosis?.detected_dependencies?.join(', ') || 'Grafo del Proyecto'}
+                  </p>
                 </div>
               </div>
             </div>

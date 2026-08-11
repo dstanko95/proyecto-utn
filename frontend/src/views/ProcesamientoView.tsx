@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AlertCircle, Bot, User, Sparkles, ArrowRight, HelpCircle, AlertTriangle } from 'lucide-react';
 import { api } from '../api';
 import { formatGeminiModel } from '../utils/requirementUtils';
@@ -16,10 +16,14 @@ export default function ProcesamientoView({
   initialAiResult,
   onCompleteAnalysis,
 }: ProcesamientoViewProps) {
-  const [aiState] = useState<any>(initialAiResult || {});
+  const [aiState, setAiState] = useState<any>(initialAiResult || {});
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    setAiState(initialAiResult || {});
+  }, [initialAiResult]);
 
   const diagnosis = aiState?.diagnosis || {
     detected_domain: activeProject?.name || 'General',

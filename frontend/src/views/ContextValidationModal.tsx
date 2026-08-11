@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Sparkles, Brain, CheckCircle2, ShieldCheck, ArrowLeft, AlertTriangle } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Sparkles, Brain, CheckCircle2, ShieldCheck, ArrowLeft, AlertTriangle, Upload } from 'lucide-react';
 import { api } from '../api';
 import { formatGeminiModel } from '../utils/requirementUtils';
 
@@ -12,6 +12,31 @@ export default function ContextValidationModal({ onClose, onProjectValidated }: 
   const [step, setStep] = useState<1 | 2>(1);
   const [projectName, setProjectName] = useState('');
   const [contextMarkdown, setContextMarkdown] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleContextFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.match(/\.md$/i)) {
+      setErrorMessage('Únicamente se permiten archivos con extensión .md.');
+      return;
+    }
+
+    setErrorMessage(null);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      if (content !== undefined) {
+        setContextMarkdown(content);
+        if (!projectName.trim()) {
+          const cleanName = file.name.replace(/\.md$/i, '').replace(/[-_]/g, ' ');
+          setProjectName(cleanName.charAt(0).toUpperCase() + cleanName.slice(1));
+        }
+      }
+    };
+    reader.readAsText(file);
+  };
   
   // Analysis results from AI
   const [createdProject, setCreatedProject] = useState<any | null>(null);
@@ -128,10 +153,25 @@ export default function ContextValidationModal({ onClose, onProjectValidated }: 
               </div>
 
               <div>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept=".md"
+                  onChange={handleContextFileSelect}
+                  className="hidden"
+                />
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500">
                     Documento de Contexto Inicial en Markdown <span className="text-red-500">*</span>
                   </label>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 font-semibold transition-colors cursor-pointer"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Adjuntar .md</span>
+                  </button>
                 </div>
                 <p className="text-xs text-slate-500 mb-2">
                   Describe el objetivo general del sistema, el problema a resolver, los usuarios esperados, el alcance inicial y cualquier regla relevante.

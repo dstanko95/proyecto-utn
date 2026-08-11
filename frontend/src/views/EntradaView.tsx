@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Sparkles, FileText, Upload, CheckCircle2, ShieldCheck, Cpu } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Sparkles, FileText, Upload, CheckCircle2, ShieldCheck, Cpu, X, FileCheck2 } from 'lucide-react';
 import { api } from '../api';
 
 interface EntradaViewProps {
@@ -12,6 +12,75 @@ export default function EntradaView({ activeProject, onStartAnalysis }: EntradaV
   const [activeTab, setActiveTab] = useState<'text' | 'file'>('text');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // File upload state
+  const [loadedFileName, setLoadedFileName] = useState<string | null>(null);
+  const [loadedFileSize, setLoadedFileSize] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const processFile = (file: File) => {
+    if (!file) return;
+
+    if (!file.name.match(/\.md$/i)) {
+      setErrorMsg('Por favor selecciona únicamente un archivo Markdown válido con extensión .md.');
+      return;
+    }
+
+    setErrorMsg(null);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      if (content !== undefined) {
+        setInputText(content);
+        setLoadedFileName(file.name);
+
+        const kb = (file.size / 1024).toFixed(1);
+        setLoadedFileSize(`${kb} KB`);
+
+        setActiveTab('text');
+      }
+    };
+    reader.onerror = () => {
+      setErrorMsg('Ocurrió un error al leer el archivo. Inténtalo de nuevo.');
+    };
+    reader.readAsText(file);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      processFile(file);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      processFile(file);
+    }
+  };
+
+  const handleClearFile = () => {
+    setLoadedFileName(null);
+    setLoadedFileSize(null);
+    setInputText('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,6 +106,15 @@ export default function EntradaView({ activeProject, onStartAnalysis }: EntradaV
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
+      {/* Hidden File Input */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept=".md"
+        onChange={handleFileChange}
+        className="hidden"
+      />
+
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex items-center justify-between">
           <div>
@@ -74,7 +152,7 @@ export default function EntradaView({ activeProject, onStartAnalysis }: EntradaV
               <button
                 type="button"
                 onClick={() => setActiveTab('text')}
-                className={`flex items-center gap-2 text-sm font-medium border-b-2 pb-1 transition-colors ${
+                className={`flex items-center gap-2 text-sm font-medium border-b-2 pb-1 transition-colors cursor-pointer ${
                   activeTab === 'text'
                     ? 'border-blue-600 text-blue-600 font-semibold'
                     : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -86,7 +164,7 @@ export default function EntradaView({ activeProject, onStartAnalysis }: EntradaV
               <button
                 type="button"
                 onClick={() => setActiveTab('file')}
-                className={`flex items-center gap-2 text-sm font-medium border-b-2 pb-1 transition-colors ${
+                className={`flex items-center gap-2 text-sm font-medium border-b-2 pb-1 transition-colors cursor-pointer ${
                   activeTab === 'file'
                     ? 'border-blue-600 text-blue-600 font-semibold'
                     : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -96,11 +174,40 @@ export default function EntradaView({ activeProject, onStartAnalysis }: EntradaV
                 Adjuntar Documento (.md)
               </button>
             </div>
-            <span className="text-xs text-slate-400">Soporta Markdown, Mermaid e Imágenes</span>
+            <span className="text-xs text-slate-400">Soporta Markdown, Mermaid</span>
           </div>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {loadedFileName && (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50/80 p-3.5 flex items-center justify-between animate-fade-in">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-emerald-600 text-white rounded-lg shadow-xs">
+                  <FileCheck2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-emerald-950 flex items-center gap-2">
+                    <span>Archivo Cargado: {loadedFileName}</span>
+                    <span className="text-[10px] font-normal px-1.5 py-0.5 bg-emerald-200 text-emerald-900 rounded font-mono">
+                      {loadedFileSize}
+                    </span>
+                  </h4>
+                  <p className="text-xs text-emerald-800 mt-0.5">
+                    El contenido fue importado exitosamente. Puedes editar el texto directamente abajo si lo deseas.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleClearFile}
+                className="p-1 text-emerald-700 hover:text-emerald-900 hover:bg-emerald-100 rounded-md transition-colors cursor-pointer"
+                title="Remover archivo cargado"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          )}
+
           {activeTab === 'text' ? (
             <div>
               <label htmlFor="req-input" className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
@@ -116,9 +223,21 @@ export default function EntradaView({ activeProject, onStartAnalysis }: EntradaV
               />
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 p-10 text-center hover:bg-slate-50/50 transition-colors cursor-pointer">
-              <Upload className="h-10 w-10 text-slate-400 mb-2" />
-              <p className="text-sm font-medium text-slate-700">Arrastra tu archivo Markdown (.md) aquí</p>
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-10 text-center transition-all cursor-pointer ${
+                isDragging
+                  ? 'border-blue-500 bg-blue-50/80 scale-[0.99]'
+                  : 'border-slate-300 hover:border-blue-400 hover:bg-slate-50/50'
+              }`}
+            >
+              <Upload className={`h-10 w-10 mb-2 transition-colors ${isDragging ? 'text-blue-600' : 'text-slate-400'}`} />
+              <p className="text-sm font-medium text-slate-700">
+                {isDragging ? 'Suelta tu archivo aquí' : 'Arrastra tu archivo Markdown (.md) aquí'}
+              </p>
               <p className="text-xs text-slate-400 mt-1">O haz clic para seleccionar desde tu equipo</p>
             </div>
           )}

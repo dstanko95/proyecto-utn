@@ -118,9 +118,12 @@ export default function App() {
     }
   };
 
+  const [isApprovedRequirement, setIsApprovedRequirement] = useState<boolean>(false);
+
   const handleStartAnalysis = (text: string, result: any) => {
     setRequirementText(text);
     setAiAnalysisResult(result);
+    setIsApprovedRequirement(false);
     setCurrentView('procesamiento');
   };
 
@@ -132,7 +135,17 @@ export default function App() {
   const handleResetRequirementState = () => {
     setRequirementText('');
     setAiAnalysisResult(null);
+    setIsApprovedRequirement(false);
     setCurrentView('entrada');
+  };
+
+  const handleViewChange = (targetView: 'dashboard' | 'entrada' | 'procesamiento' | 'salida' | 'aprobados') => {
+    if (isApprovedRequirement && targetView !== 'salida') {
+      setRequirementText('');
+      setAiAnalysisResult(null);
+      setIsApprovedRequirement(false);
+    }
+    setCurrentView(targetView);
   };
 
   const isPhase2Locked = !requirementText || requirementText.trim().length === 0;
@@ -160,10 +173,13 @@ export default function App() {
     <div className="flex h-screen bg-slate-50 font-sans text-slate-800 antialiased overflow-hidden">
       <Sidebar
         currentView={currentView}
-        onViewChange={setCurrentView}
+        onViewChange={handleViewChange}
         projects={projectNames}
         activeProject={activeProjectName}
-        onProjectChange={handleSelectProjectName}
+        onProjectChange={(name) => {
+          handleResetRequirementState();
+          handleSelectProjectName(name);
+        }}
         onNewProject={() => setIsCreatingModalOpen(true)}
         onDeleteProject={handleDeleteProject}
         isPhase2Locked={isPhase2Locked}
@@ -228,7 +244,18 @@ export default function App() {
                   activeProject={activeProject}
                   aiResult={aiAnalysisResult}
                   onNewRequirement={handleResetRequirementState}
-                  onViewApproved={() => setCurrentView('aprobados')}
+                  onViewApproved={() => {
+                    handleResetRequirementState();
+                    setCurrentView('aprobados');
+                  }}
+                  onApproveSuccess={() => setIsApprovedRequirement(true)}
+                  onNavigateToProcesamiento={() => setCurrentView('procesamiento')}
+                  onRetryGeneration={(updatedResult) => {
+                    setAiAnalysisResult(updatedResult);
+                    if (updatedResult && (!updatedResult.is_sufficient || updatedResult.status === 'NEEDS_CLARIFICATION')) {
+                      setCurrentView('procesamiento');
+                    }
+                  }}
                 />
               )}
 
