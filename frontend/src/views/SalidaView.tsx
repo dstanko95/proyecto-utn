@@ -226,7 +226,7 @@ export default function SalidaView({ activeProject, aiResult, onNewRequirement, 
               }`}
             >
               <FileText className="h-4 w-4" />
-              Documento Markdown (PDD-like)
+              Documento Markdown
             </button>
 
             <button

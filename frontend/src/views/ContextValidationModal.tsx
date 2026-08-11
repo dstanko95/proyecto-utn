@@ -132,7 +132,6 @@ export default function ContextValidationModal({ onClose, onProjectValidated }: 
                   <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500">
                     Documento de Contexto Inicial en Markdown <span className="text-red-500">*</span>
                   </label>
-                  <span className="text-[11px] text-slate-400">Sección 3.1 Proyecto-UTN.md</span>
                 </div>
                 <p className="text-xs text-slate-500 mb-2">
                   Describe el objetivo general del sistema, el problema a resolver, los usuarios esperados, el alcance inicial y cualquier regla relevante.

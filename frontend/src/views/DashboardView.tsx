@@ -118,7 +118,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Base funcional procesada por el Agente Analizador y confirmada por el usuario (Sección 3.1 Proyecto-UTN.md).
+                Base funcional procesada por el Agente Analizador y confirmada por el usuario.
               </p>
             </div>
           </div>
