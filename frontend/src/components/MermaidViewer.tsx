@@ -27,7 +27,7 @@ export default function MermaidViewer({ chart, title, defaultMode = 'preview' }:
   const [copied, setCopied] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Clean mermaid chart string
+  // Clean and sanitize mermaid chart string
   const getCleanChart = (raw: string): string => {
     if (!raw) return '';
     let cleaned = raw.trim();
@@ -39,7 +39,13 @@ export default function MermaidViewer({ chart, title, defaultMode = 'preview' }:
     if (cleaned.endsWith('```')) {
       cleaned = cleaned.substring(0, cleaned.length - 3);
     }
-    return cleaned.trim();
+    cleaned = cleaned.trim();
+
+    // Auto-fix unescaped double quotes inside bracketed or braced node labels [ ... " ... ]
+    return cleaned.replace(/(\[|\{)([^"\n\]\}]*?"[^"\n\]\}]*?)(\]|\})/g, (_match, open, content, close) => {
+      const cleanContent = content.replace(/"/g, "'");
+      return `${open}"${cleanContent}"${close}`;
+    });
   };
 
   const cleanChart = getCleanChart(chart);
@@ -86,41 +92,41 @@ export default function MermaidViewer({ chart, title, defaultMode = 'preview' }:
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden transition-all">
       {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 px-5 py-3 border-b border-slate-200">
-        <div className="flex items-center gap-2">
-          <Layers className="h-4 w-4 text-purple-600" />
-          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-            {title || 'Diagrama de Flujo (Mermaid)'}
+      <div className="flex items-center justify-between gap-2 bg-slate-50 px-4 py-2.5 border-b border-slate-200">
+        <div className="flex items-center gap-2 min-w-0">
+          <Layers className="h-4 w-4 text-purple-600 shrink-0" />
+          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 truncate whitespace-nowrap">
+            {title || 'Diagrama (Mermaid)'}
           </h4>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {/* Mode Switcher Buttons */}
           <div className="inline-flex rounded-lg bg-slate-200/80 p-0.5 text-xs font-semibold text-slate-700">
             <button
               type="button"
               onClick={() => setMode('preview')}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition-all cursor-pointer ${
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-md transition-all cursor-pointer whitespace-nowrap ${
                 mode === 'preview'
                   ? 'bg-white text-blue-700 shadow-xs font-bold'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <Eye className="h-3.5 w-3.5" />
-              <span>Ver Previsualización</span>
+              <span>Previsualización</span>
             </button>
 
             <button
               type="button"
               onClick={() => setMode('code')}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition-all cursor-pointer ${
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-md transition-all cursor-pointer whitespace-nowrap ${
                 mode === 'code'
                   ? 'bg-white text-blue-700 shadow-xs font-bold'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <Code className="h-3.5 w-3.5" />
-              <span>Ver Código Fuente</span>
+              <span>Código Fuente</span>
             </button>
           </div>
 
@@ -128,7 +134,7 @@ export default function MermaidViewer({ chart, title, defaultMode = 'preview' }:
           <button
             type="button"
             onClick={handleCopyCode}
-            className="p-1.5 rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+            className="p-1.5 rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
             title="Copiar código Mermaid"
           >
             {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
