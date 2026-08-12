@@ -17,31 +17,6 @@ services:
       timeout: 5s
       retries: 5
 
-  ollama:
-    image: ollama/ollama:latest
-    container_name: reqrefiner-ollama
-    restart: always
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-
-  ollama-pull-model:
-    image: ollama/ollama:latest
-    container_name: reqrefiner-ollama-pull
-    environment:
-      - OLLAMA_HOST=http://ollama:11434
-    depends_on:
-      - ollama
-    entrypoint: /bin/sh -c "ollama pull ${OLLAMA_MODEL:-qwen2.5:7b}"
-
   ai-service:
     build:
       context: ./ai-service
@@ -61,8 +36,6 @@ services:
       - GOOGLE_API_KEY2=${GOOGLE_API_KEY2}
       - DISABLE_GEMINI=${DISABLE_GEMINI:-false}
       - MODEL_NAME=${MODEL_NAME:-gemini-3.5-flash-lite}
-      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:7b}
     depends_on:
       postgres:
         condition: service_healthy
@@ -103,6 +76,5 @@ services:
 
 volumes:
   postgres_data:
-  ollama_data:
   ai_service_logs:
 
