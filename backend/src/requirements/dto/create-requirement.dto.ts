@@ -20,4 +20,10 @@ export class CreateRequirementDto {
   @IsString()
   @IsOptional()
   initialMermaid?: string;
+
+  @IsOptional()
+  dependencies?: string[];
+
+  @IsOptional()
+  rules?: any[];
 }

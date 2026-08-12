@@ -18,6 +18,11 @@ def analyzer_agent(state: AgentState) -> AgentState:
     domain = project.get("domain", "General")
     context_markdown = project.get("initialContextMarkdown", "")
 
+    print("================================================================================", flush=True)
+    print(f"[AI-SERVICE LOG] 🤖 [Agente Analizador]: Iniciando análisis agéntico en vivo...", flush=True)
+    print(f"[AI-SERVICE LOG] 📂 Proyecto: '{project_name}' | Dominio Detectado: '{domain}'", flush=True)
+    print(f"[AI-SERVICE LOG] 🔍 Consultando base vectorial pgvector para relacionar reglas antecedente (RN_MEM)...", flush=True)
+
     system_prompt = f"""Eres el Agente Analizador Funcional del sistema ReqRefiner.
 Tu tarea es analizar el texto de CUALQUIER REQUERIMIENTO FUNCIONAL ESPECÍFICO e identificar en formato JSON estricto:
 1. "detected_domain": Dominio del proyecto ("{domain}").
@@ -39,6 +44,7 @@ REQUERIMIENTO INGRESADO A ANALIZAR:
 {req_text}"""
 
     content, source = invoke_llm_with_fallback(system_prompt, human_prompt, caller_context="analyzer_agent")
+    print(f"[AI-SERVICE LOG] ⚡ Proveedor LLM invocado: '{source}'", flush=True)
 
     if content:
         try:

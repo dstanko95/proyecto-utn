@@ -9,12 +9,13 @@ import {
   BrainCircuit,
   Trash2,
   Lock,
-  FileCheck
+  FileCheck,
+  GitFork
 } from 'lucide-react';
 
 interface SidebarProps {
-  currentView: 'dashboard' | 'entrada' | 'procesamiento' | 'salida' | 'aprobados';
-  onViewChange: (view: 'dashboard' | 'entrada' | 'procesamiento' | 'salida' | 'aprobados') => void;
+  currentView: 'dashboard' | 'entrada' | 'procesamiento' | 'salida' | 'aprobados' | 'grafo';
+  onViewChange: (view: 'dashboard' | 'entrada' | 'procesamiento' | 'salida' | 'aprobados' | 'grafo') => void;
   activeProject: string;
   projects: string[];
   onProjectChange: (project: string) => void;
@@ -41,6 +42,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'procesamiento', label: 'Fase 2: Procesamiento', icon: Cpu, isLocked: isPhase2Locked },
     { id: 'salida', label: 'Fase 3: Salida', icon: FileOutput, isLocked: isPhase3Locked },
     { id: 'aprobados', label: 'Requerimientos Aprobados', icon: FileCheck, isLocked: false },
+    { id: 'grafo', label: 'Grafo de Dependencias', icon: GitFork, isLocked: false },
   ] as const;
 
   return (

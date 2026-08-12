@@ -71,12 +71,16 @@ export default function SalidaView({ activeProject, aiResult, onNewRequirement, 
         description: activeResult?.requirement_text || markdownContent
       });
 
+      const extractedRules = activeResult?.extracted_rules || activeResult?.diagnosis?.extracted_rules || [];
+
       const createdReq = await api.createRequirement(
         reqCode,
         generalDesc,
         markdownContent,
         activeProject ? activeProject.id : '',
-        mermaidDiagram
+        mermaidDiagram,
+        activeResult?.diagnosis?.detected_dependencies || [],
+        extractedRules
       );
 
       await api.approveRequirement(createdReq.id);
@@ -419,12 +423,21 @@ export default function SalidaView({ activeProject, aiResult, onNewRequirement, 
 
           {activeTab === 'versions' && (
             <div className="space-y-3">
-              <div className="rounded-lg border border-slate-200 bg-white p-4 flex items-center justify-between">
-                <div>
-                  <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800">Versión Refinada</span>
-                  <p className="text-xs text-slate-600 mt-1">Generada por Agentes LangGraph</p>
+              <div className="rounded-lg border border-slate-200 bg-white p-4 flex items-center justify-between shadow-2xs">
+                <div className="flex items-center gap-3">
+                  <span className="rounded bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-800 font-mono">
+                    Versión {activeResult?.version_number || 'v1.0'}
+                  </span>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-800">Especificación Refinada por Agentes IA</h4>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Procesada mediante Orquestador LangGraph • {formatGeminiModel(activeResult?.response_source)}
+                    </p>
+                  </div>
                 </div>
-                <span className="text-xs text-slate-400">Reciente</span>
+                <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-[10px] font-bold text-blue-700 border border-blue-100">
+                  VERSIÓN ACTUAL EN PROCESO
+                </span>
               </div>
             </div>
           )}

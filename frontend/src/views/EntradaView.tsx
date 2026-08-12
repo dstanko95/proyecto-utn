@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Sparkles, FileText, Upload, CheckCircle2, ShieldCheck, Cpu, X, FileCheck2, GitBranch, Wand2, Eye } from 'lucide-react';
 import { api } from '../api';
 import { convertMermaidToMarkdown } from '../utils/mermaidConverter';
@@ -7,10 +7,17 @@ import MermaidViewer from '../components/MermaidViewer';
 interface EntradaViewProps {
   activeProject: any;
   onStartAnalysis: (text: string, result: any) => void;
+  initialText?: string;
 }
 
-export default function EntradaView({ activeProject, onStartAnalysis }: EntradaViewProps) {
-  const [inputText, setInputText] = useState('');
+export default function EntradaView({ activeProject, onStartAnalysis, initialText }: EntradaViewProps) {
+  const [inputText, setInputText] = useState(initialText || '');
+
+  useEffect(() => {
+    if (initialText !== undefined) {
+      setInputText(initialText);
+    }
+  }, [initialText]);
   const [activeTab, setActiveTab] = useState<'text' | 'file' | 'mermaid'>('text');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);

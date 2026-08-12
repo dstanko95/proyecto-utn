@@ -4,7 +4,7 @@ import type { UserProfile } from '../api';
 
 interface HeaderProps {
   activeProject: string;
-  currentView: 'dashboard' | 'entrada' | 'procesamiento' | 'salida' | 'aprobados';
+  currentView: 'dashboard' | 'entrada' | 'procesamiento' | 'salida' | 'aprobados' | 'grafo';
   globalRulesCount: number;
   user?: UserProfile | null;
   onLogout?: () => void;
@@ -29,6 +29,8 @@ export const Header: React.FC<HeaderProps> = ({
         return 'Fase 3: Documentación y Salida';
       case 'aprobados':
         return 'Requerimientos Aprobados & Persistidos';
+      case 'grafo':
+        return 'Grafo de Dependencias del Proyecto';
       default:
         return 'ReqRefiner';
     }

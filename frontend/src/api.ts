@@ -132,10 +132,10 @@ class ApiClient {
     });
   }
 
-  async createRequirement(code: string, title: string, description: string, projectId: string, initialMermaid?: string) {
+  async createRequirement(code: string, title: string, description: string, projectId: string, initialMermaid?: string, dependencies?: string[], rules?: any[]) {
     return this.request<any>('/requirements', {
       method: 'POST',
-      body: JSON.stringify({ code, title, description, projectId, initialMermaid }),
+      body: JSON.stringify({ code, title, description, projectId, initialMermaid, dependencies, rules }),
     });
   }
 

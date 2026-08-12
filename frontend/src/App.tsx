@@ -1,22 +1,24 @@
 import { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
+import { Footer } from './components/Footer';
 import { DashboardView } from './views/DashboardView';
 import EntradaView from './views/EntradaView';
 import ProcesamientoView from './views/ProcesamientoView';
 import SalidaView from './views/SalidaView';
 import AprobadosView from './views/AprobadosView';
+import GrafoView from './views/GrafoView';
 import AuthView from './views/AuthView';
 import ContextValidationModal from './views/ContextValidationModal';
 import { api } from './api';
 import type { UserProfile } from './api';
-import { FolderPlus, Plus } from 'lucide-react';
+import { FolderKanban } from 'lucide-react';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [isCheckingAuth, setIsCheckingAuth] = useState<boolean>(true);
   
-  const [currentView, setCurrentView] = useState<'dashboard' | 'entrada' | 'procesamiento' | 'salida' | 'aprobados'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'entrada' | 'procesamiento' | 'salida' | 'aprobados' | 'grafo'>('dashboard');
   const [projects, setProjects] = useState<any[]>([]);
   const [activeProject, setActiveProject] = useState<any | null>(null);
   const [requirementText, setRequirementText] = useState<string>('');
@@ -69,13 +71,18 @@ export default function App() {
     setCurrentView('dashboard');
   };
 
+  const resetPhaseState = () => {
+    setRequirementText('');
+    setAiAnalysisResult(null);
+    setIsApprovedRequirement(false);
+  };
+
   const handleLogout = () => {
     api.logout();
     setCurrentUser(null);
     setProjects([]);
     setActiveProject(null);
-    setRequirementText('');
-    setAiAnalysisResult(null);
+    resetPhaseState();
     setCurrentView('dashboard');
   };
 
@@ -83,6 +90,7 @@ export default function App() {
     const found = projects.find((p) => (p.name || p) === projName);
     if (found) {
       setActiveProject(found);
+      resetPhaseState();
     }
   };
 
@@ -94,6 +102,7 @@ export default function App() {
     // Find fully populated project
     const found = updatedList.find(p => p.id === newProject.id);
     setActiveProject(found || newProject);
+    resetPhaseState();
     setCurrentView('dashboard');
   };
 
@@ -113,6 +122,8 @@ export default function App() {
       } else {
         setActiveProject(null);
       }
+      resetPhaseState();
+      setCurrentView('dashboard');
     } catch (e) {
       console.error('Error al eliminar proyecto:', e);
     }
@@ -139,7 +150,7 @@ export default function App() {
     setCurrentView('entrada');
   };
 
-  const handleViewChange = (targetView: 'dashboard' | 'entrada' | 'procesamiento' | 'salida' | 'aprobados') => {
+  const handleViewChange = (targetView: 'dashboard' | 'entrada' | 'procesamiento' | 'salida' | 'aprobados' | 'grafo') => {
     if (isApprovedRequirement && targetView !== 'salida') {
       setRequirementText('');
       setAiAnalysisResult(null);
@@ -147,8 +158,7 @@ export default function App() {
     }
     setCurrentView(targetView);
   };
-
-  const isPhase2Locked = !requirementText || requirementText.trim().length === 0;
+  const isPhase2Locked = !aiAnalysisResult;
   const isPhase3Locked = !aiAnalysisResult || !aiAnalysisResult.refined_markdown;
 
   if (isCheckingAuth) {
@@ -198,19 +208,16 @@ export default function App() {
         <main className="flex-1 overflow-y-auto p-6">
           {!activeProject || projects.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-[calc(100vh-10rem)] rounded-2xl border-2 border-dashed border-slate-200 bg-white p-8 text-center">
-              <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 text-blue-600 mb-4">
-                <FolderPlus className="w-10 h-10" />
-              </div>
-              <h3 className="text-xl font-bold text-slate-800">No tienes proyectos creados</h3>
-              <p className="text-sm text-slate-500 max-w-md mt-1 mb-6">
-                Para comenzar a refinar requerimientos, crea tu primer proyecto cargando su documento de Contexto Inicial en Markdown.
+              <FolderKanban className="h-12 w-12 text-slate-300 mb-3" />
+              <h3 className="text-lg font-bold text-slate-800">No hay ningún proyecto activo</h3>
+              <p className="text-sm text-slate-500 max-w-md mt-1 mb-4">
+                Para comenzar a analizar requerimientos, crea o selecciona un proyecto desde el menú lateral.
               </p>
               <button
                 onClick={() => setIsCreatingModalOpen(true)}
-                className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm rounded-lg shadow-sm transition-all cursor-pointer"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors cursor-pointer"
               >
-                <Plus className="w-4 h-4" />
-                Crear Proyecto con Contexto Inicial
+                + Crear Primer Proyecto
               </button>
             </div>
           ) : (
@@ -227,6 +234,7 @@ export default function App() {
                 <EntradaView
                   activeProject={activeProject}
                   onStartAnalysis={handleStartAnalysis}
+                  initialText={requirementText}
                 />
               )}
 
@@ -263,11 +271,26 @@ export default function App() {
                 <AprobadosView
                   activeProject={activeProject}
                   onNavigateToEntrada={() => setCurrentView('entrada')}
+                  onRefineRequirement={(_code, markdown) => {
+                    setRequirementText(markdown);
+                    setAiAnalysisResult(null);
+                    setIsApprovedRequirement(false);
+                    setCurrentView('entrada');
+                  }}
+                />
+              )}
+
+              {currentView === 'grafo' && (
+                <GrafoView
+                  activeProject={activeProject}
+                  onNavigateToEntrada={() => setCurrentView('entrada')}
                 />
               )}
             </>
           )}
         </main>
+        
+        <Footer />
       </div>
 
       {/* Modal Guiado de Carga y Validación del Contexto Inicial del Proyecto */}

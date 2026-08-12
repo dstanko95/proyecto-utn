@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FileCheck, Download, BookOpen, ChevronDown, ChevronUp, Sparkles, FolderKanban } from 'lucide-react';
+import { FileCheck, Download, BookOpen, ChevronDown, ChevronUp, Sparkles, FolderKanban, GitBranch, History } from 'lucide-react';
 import { api } from '../api';
 import { getGeneralDescription, formatDateTime } from '../utils/requirementUtils';
 import MermaidViewer from '../components/MermaidViewer';
@@ -7,12 +7,14 @@ import MermaidViewer from '../components/MermaidViewer';
 interface AprobadosViewProps {
   activeProject: any;
   onNavigateToEntrada: () => void;
+  onRefineRequirement?: (reqCode: string, contentMarkdown: string) => void;
 }
 
-export default function AprobadosView({ activeProject, onNavigateToEntrada }: AprobadosViewProps) {
+export default function AprobadosView({ activeProject, onNavigateToEntrada, onRefineRequirement }: AprobadosViewProps) {
   const [approvedRequirements, setApprovedRequirements] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [selectedVersionId, setSelectedVersionId] = useState<Record<string, string>>({});
 
   useEffect(() => {
     async function loadApproved() {
@@ -40,15 +42,17 @@ export default function AprobadosView({ activeProject, onNavigateToEntrada }: Ap
     setExpandedId(prev => (prev === id ? null : id));
   };
 
-  const handleDownloadMarkdown = (req: any) => {
-    const content = req.versions && req.versions.length > 0 ? req.versions[0].contentMarkdown : req.description;
+  const handleDownloadMarkdown = (req: any, versionObj?: any) => {
+    const ver = versionObj || (req.versions && req.versions.length > 0 ? req.versions[0] : null);
+    const content = ver ? ver.contentMarkdown : req.description;
+    const verNum = ver ? ver.versionNumber : 'v1.0';
     const blob = new Blob([content], { type: 'text/markdown;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
     const generalDesc = getGeneralDescription(req);
     const safeTitle = (generalDesc || 'Requerimiento').slice(0, 30).replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
-    link.setAttribute('download', `${req.code}_${safeTitle}.md`);
+    link.setAttribute('download', `${req.code}_${verNum}_${safeTitle}.md`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -115,12 +119,17 @@ export default function AprobadosView({ activeProject, onNavigateToEntrada }: Ap
         <div className="space-y-4">
           {approvedRequirements.map((req) => {
             const isExpanded = expandedId === req.id;
-            const latestVersion = req.versions && req.versions.length > 0 ? req.versions[0] : null;
-            const contentMarkdown = latestVersion ? latestVersion.contentMarkdown : req.description;
-            const mermaidDiagram = latestVersion ? latestVersion.mermaidDiagram : null;
+            const versionsList = req.versions && req.versions.length > 0 ? req.versions : [];
+            const activeVersionId = selectedVersionId[req.id] || (versionsList[0]?.id || '');
+            const activeVersion = versionsList.find((v: any) => v.id === activeVersionId) || versionsList[0] || null;
+
+            const contentMarkdown = activeVersion ? activeVersion.contentMarkdown : req.description;
+            const mermaidDiagram = activeVersion ? activeVersion.mermaidDiagram : null;
+            const activeVersionNumber = activeVersion?.versionNumber || 'v1.0';
+            const activeChangeLog = activeVersion?.changeLog || 'Carga inicial del requerimiento';
 
             const generalDesc = getGeneralDescription(req);
-            const dateTime = formatDateTime(req.updatedAt || req.createdAt);
+            const dateTime = formatDateTime(activeVersion?.createdAt || req.updatedAt || req.createdAt);
 
             return (
               <div key={req.id} className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden transition-all">
@@ -135,21 +144,62 @@ export default function AprobadosView({ activeProject, onNavigateToEntrada }: Ap
                     </span>
                     <div>
                       <h3 className="text-sm font-bold text-slate-800">{generalDesc}</h3>
-                      <p className="text-[11px] text-slate-400 mt-0.5">
-                        Aprobado el {dateTime.full} • Versión {latestVersion?.versionNumber || 'v1.0'}
+                      <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-2">
+                        <span>Aprobado el {dateTime.full}</span>
+                        <span>•</span>
+                        <span className="font-semibold text-blue-700">Versión {activeVersionNumber}</span>
                       </p>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-3">
+                    {/* Version Selector Dropdown */}
+                    {versionsList.length > 0 && (
+                      <div
+                        className="flex items-center gap-1.5 bg-slate-100/80 px-2.5 py-1 rounded-lg border border-slate-200"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <History className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                        <span className="text-[11px] font-semibold text-slate-600 whitespace-nowrap hidden sm:inline">Ver:</span>
+                        <select
+                          value={activeVersionId}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            setSelectedVersionId(prev => ({ ...prev, [req.id]: e.target.value }));
+                          }}
+                          className="bg-white text-xs font-bold text-slate-800 border border-slate-300 rounded px-2 py-0.5 shadow-2xs focus:ring-2 focus:ring-blue-100 cursor-pointer"
+                        >
+                          {versionsList.map((ver: any, index: number) => (
+                            <option key={ver.id} value={ver.id}>
+                              {ver.versionNumber || `v1.${versionsList.length - 1 - index}`} {index === 0 ? '(Más Reciente)' : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
                     <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800">
                       <FileCheck className="h-3 w-3" />
                       APROBADO
                     </span>
+                    {onRefineRequirement && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRefineRequirement(req.code, contentMarkdown);
+                        }}
+                        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-600 hover:text-white text-xs font-semibold transition-all shadow-2xs cursor-pointer whitespace-nowrap shrink-0"
+                        title="Generar nueva versión de este requerimiento"
+                      >
+                        <GitBranch className="h-3.5 w-3.5 shrink-0" />
+                        <span className="whitespace-nowrap">Crear Nueva Versión</span>
+                      </button>
+                    )}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleDownloadMarkdown(req);
+                        handleDownloadMarkdown(req, activeVersion);
                       }}
                       className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 hover:text-blue-600 transition-colors"
                       title="Descargar .md"
@@ -163,11 +213,25 @@ export default function AprobadosView({ activeProject, onNavigateToEntrada }: Ap
                 {/* Expanded Details */}
                 {isExpanded && (
                   <div className="p-6 space-y-6 bg-white">
+                    {/* Version ChangeLog Notice */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg bg-blue-50/60 border border-blue-100 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="rounded bg-blue-600 px-2 py-0.5 text-[10px] font-bold text-white font-mono shrink-0">
+                          {activeVersionNumber}
+                        </span>
+                        <span className="font-semibold text-slate-700">Bitácora de Cambios:</span>
+                        <span className="text-slate-600">{activeChangeLog}</span>
+                      </div>
+                      <span className="text-slate-400 text-[11px] font-mono shrink-0">
+                        Fecha: {dateTime.full}
+                      </span>
+                    </div>
+
                     {/* Markdown Document Content */}
                     <div>
                       <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1.5">
                         <FolderKanban className="h-3.5 w-3.5 text-blue-600" />
-                        Especificación Funcional Refinada
+                        Especificación Funcional Refinada ({activeVersionNumber})
                       </h4>
                       <pre className="rounded-xl bg-slate-900 p-5 text-slate-100 font-mono text-xs overflow-x-auto whitespace-pre-wrap leading-relaxed">
                         {contentMarkdown}
@@ -176,7 +240,7 @@ export default function AprobadosView({ activeProject, onNavigateToEntrada }: Ap
 
                     {/* Mermaid Flowchart */}
                     {mermaidDiagram && (
-                      <MermaidViewer chart={mermaidDiagram} title="Diagrama de Flujo (Mermaid)" defaultMode="preview" />
+                      <MermaidViewer chart={mermaidDiagram} title={`Diagrama de Flujo (${activeVersionNumber})`} defaultMode="preview" />
                     )}
 
                     {/* Business Rules Catalog */}
