@@ -9,8 +9,7 @@ import {
   BrainCircuit,
   Trash2,
   Lock,
-  FileCheck,
-  GitFork
+  FileCheck
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -42,7 +41,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'procesamiento', label: 'Fase 2: Procesamiento', icon: Cpu, isLocked: isPhase2Locked },
     { id: 'salida', label: 'Fase 3: Salida', icon: FileOutput, isLocked: isPhase3Locked },
     { id: 'aprobados', label: 'Requerimientos Aprobados', icon: FileCheck, isLocked: false },
-    { id: 'grafo', label: 'Grafo de Dependencias', icon: GitFork, isLocked: false },
   ] as const;
 
   return (

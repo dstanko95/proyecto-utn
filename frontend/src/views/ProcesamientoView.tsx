@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { AlertCircle, Bot, User, Sparkles, ArrowRight, HelpCircle, AlertTriangle } from 'lucide-react';
+import { AlertCircle, Bot, User, Sparkles, ArrowRight, HelpCircle, AlertTriangle, XCircle } from 'lucide-react';
 import { api } from '../api';
 import { formatGeminiModel } from '../utils/requirementUtils';
 
@@ -34,6 +34,7 @@ export default function ProcesamientoView({
   };
 
   const isFallbackMode = aiState?.is_ai_generated === false || diagnosis?.is_ai_generated === false;
+  const rejectionFeedback = aiState?.rejection_feedback || initialAiResult?.rejection_feedback;
 
   const questions: string[] = aiState?.clarification_questions || [];
 
@@ -64,6 +65,25 @@ export default function ProcesamientoView({
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
+      {/* Rejection / Adjustment Request Banner */}
+      {rejectionFeedback && (
+        <div className="rounded-xl bg-red-50 border border-red-200 p-5 flex items-start gap-4 text-red-950 shadow-xs animate-fade-in">
+          <div className="p-2 bg-red-600 text-white rounded-lg shrink-0 mt-0.5 shadow-xs">
+            <XCircle className="w-5 h-5" />
+          </div>
+          <div>
+            <h4 className="text-xs font-bold text-red-950 uppercase tracking-wider">
+              Solicitud de Ajuste del Evaluador en Fase 3
+            </h4>
+            <p className="text-xs text-red-800 mt-1 font-semibold leading-relaxed">
+              "{rejectionFeedback}"
+            </p>
+            <p className="text-[11px] text-red-700 mt-1.5 leading-normal">
+              Responde las preguntas o ingresa las aclaraciones a continuación para re-orquestar la especificación técnica con los agentes.
+            </p>
+          </div>
+        </div>
+      )}
       {/* Step Indicator Header */}
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex items-center justify-between">
@@ -185,20 +205,37 @@ export default function ProcesamientoView({
                         Preguntas de Aclaración Formuladas por el Planificador:
                       </span>
 
-                      {questions.map((q, idx) => (
-                        <div key={idx} className="rounded-lg bg-white p-3.5 border border-amber-200/70 shadow-xs space-y-2">
-                          <p className="text-xs font-semibold text-slate-800">
-                            {idx + 1}. {q}
-                          </p>
-                          <input
-                            type="text"
-                            value={answers[idx] || ''}
-                            onChange={(e) => handleAnswerChange(idx, e.target.value)}
-                            placeholder="Escribe tu aclaración o confirmación..."
-                            className="w-full rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
-                          />
-                        </div>
-                      ))}
+                      {questions.map((q, idx) => {
+                        const currentVal = answers[idx] || '';
+                        const charCount = currentVal.length;
+                        const MAX_CHARS = 150;
+                        return (
+                          <div key={idx} className="rounded-lg bg-white p-3.5 border border-amber-200/70 shadow-xs space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-xs font-semibold text-slate-800">
+                                {idx + 1}. {q}
+                              </p>
+                              <span className={`text-[10px] font-mono font-semibold shrink-0 px-1.5 py-0.5 rounded ${
+                                charCount >= MAX_CHARS ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-500'
+                              }`}>
+                                {charCount}/{MAX_CHARS}
+                              </span>
+                            </div>
+                            <input
+                              type="text"
+                              maxLength={MAX_CHARS}
+                              value={currentVal}
+                              onChange={(e) => handleAnswerChange(idx, e.target.value.slice(0, MAX_CHARS))}
+                              placeholder="Escribe tu aclaración o confirmación..."
+                              className={`w-full rounded-md border px-3 py-1.5 text-xs text-slate-800 focus:ring-1 outline-none transition-all ${
+                                charCount >= MAX_CHARS
+                                  ? 'border-amber-400 focus:border-amber-500 focus:ring-amber-200 bg-amber-50/30'
+                                  : 'border-slate-300 focus:border-blue-500 focus:ring-blue-200'
+                              }`}
+                            />
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : (
                     <p className="text-xs font-medium text-emerald-700 bg-emerald-50 p-3 rounded-lg border border-emerald-200">
