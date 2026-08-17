@@ -29,6 +29,7 @@ class TokenConsumptionLogger:
         self.total_tokens = 0
         self.provider_stats: Dict[str, Dict[str, Any]] = {}
         self.recent_logs: List[Dict[str, Any]] = []
+        self._load_history_from_file()
 
     def _ensure_log_dir(self):
         try:
@@ -36,6 +37,64 @@ class TokenConsumptionLogger:
                 os.makedirs(LOGS_DIR, exist_ok=True)
         except Exception as e:
             logger.error(f"Error creando directorio de logs: {e}")
+
+    def _load_history_from_file(self):
+        with self._lock:
+            self.total_requests = 0
+            self.total_prompt_tokens = 0
+            self.total_completion_tokens = 0
+            self.total_tokens = 0
+            self.provider_stats.clear()
+            self.recent_logs.clear()
+
+            if not os.path.exists(LOG_FILE):
+                return
+
+            try:
+                with open(LOG_FILE, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            entry = json.loads(line)
+                            provider = entry.get("provider", "unknown")
+                            prompt_tokens = int(entry.get("prompt_tokens", 0))
+                            completion_tokens = int(entry.get("completion_tokens", 0))
+                            total_tokens = int(entry.get("total_tokens", prompt_tokens + completion_tokens))
+                            latency_ms = float(entry.get("latency_ms", 0.0))
+
+                            self.total_requests += 1
+                            self.total_prompt_tokens += prompt_tokens
+                            self.total_completion_tokens += completion_tokens
+                            self.total_tokens += total_tokens
+
+                            if provider not in self.provider_stats:
+                                self.provider_stats[provider] = {
+                                    "requests": 0,
+                                    "prompt_tokens": 0,
+                                    "completion_tokens": 0,
+                                    "total_tokens": 0,
+                                    "total_latency_ms": 0.0,
+                                    "avg_latency_ms": 0.0
+                                }
+                            p_stat = self.provider_stats[provider]
+                            p_stat["requests"] += 1
+                            p_stat["prompt_tokens"] += prompt_tokens
+                            p_stat["completion_tokens"] += completion_tokens
+                            p_stat["total_tokens"] += total_tokens
+                            p_stat["total_latency_ms"] += latency_ms
+                            p_stat["avg_latency_ms"] = round(p_stat["total_latency_ms"] / p_stat["requests"], 2)
+
+                            self.recent_logs.append(entry)
+                            if len(self.recent_logs) > self.max_history:
+                                self.recent_logs.pop(0)
+                        except json.JSONDecodeError:
+                            continue
+                        except Exception as e:
+                            logger.warning(f"Error procesando línea de log: {e}")
+            except Exception as e:
+                logger.error(f"Error leyendo {LOG_FILE}: {e}")
 
     def log_usage(
         self,
@@ -137,7 +196,13 @@ class TokenConsumptionLogger:
             self.total_tokens = 0
             self.provider_stats.clear()
             self.recent_logs.clear()
-        logger.info("[TOKEN CONSUMPTION LOG] Métricas de uso de tokens reiniciadas.")
+            try:
+                if os.path.exists(LOG_FILE):
+                    with open(LOG_FILE, "w", encoding="utf-8") as f:
+                        f.truncate(0)
+            except Exception as e:
+                logger.error(f"Error al vaciar {LOG_FILE}: {e}")
+        logger.info("[TOKEN CONSUMPTION LOG] Métricas de uso de tokens e historial reiniciados.")
 
 # Instancia global singleton
 token_logger = TokenConsumptionLogger()
