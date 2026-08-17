@@ -143,6 +143,19 @@ export default function App() {
     setCurrentView('salida');
   };
 
+  const handleRejectRequirement = (feedbackMessage: string) => {
+    setAiAnalysisResult((prev: any) => ({
+      ...prev,
+      rejection_feedback: feedbackMessage,
+      clarification_questions: [
+        `[SOLICITUD DE AJUSTE DEL EVALUADOR EN FASE 3]: ${feedbackMessage}`
+      ],
+      status: 'NEEDS_CLARIFICATION',
+      is_sufficient: false
+    }));
+    setCurrentView('procesamiento');
+  };
+
   const handleResetRequirementState = () => {
     setRequirementText('');
     setAiAnalysisResult(null);
@@ -258,6 +271,7 @@ export default function App() {
                   }}
                   onApproveSuccess={() => setIsApprovedRequirement(true)}
                   onNavigateToProcesamiento={() => setCurrentView('procesamiento')}
+                  onRejectRequirement={handleRejectRequirement}
                   onRetryGeneration={(updatedResult) => {
                     setAiAnalysisResult(updatedResult);
                     if (updatedResult && (!updatedResult.is_sufficient || updatedResult.status === 'NEEDS_CLARIFICATION')) {

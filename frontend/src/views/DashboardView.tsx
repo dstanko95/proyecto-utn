@@ -72,7 +72,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     { label: 'Validados & Aprobados', value: approvedReqs.toString(), subtext: 'En memoria pgvector', icon: CheckCircle, color: 'text-emerald-600', bg: 'bg-emerald-50 border border-emerald-100/30' },
     { label: 'Preguntas Agénticas', value: (totalReqs * 2).toString(), subtext: 'Formuladas por LangGraph', icon: HelpCircle, color: 'text-purple-600', bg: 'bg-purple-50 border border-purple-100/30' },
     { label: 'Precisión IA', value: totalReqs > 0 ? '96%' : '100%', subtext: 'Tasa de consistencia', icon: Target, color: 'text-emerald-600', bg: 'bg-emerald-50 border border-emerald-100/30' },
-    { label: 'Dependencias Estructurales', value: dependenciesCount.toString(), subtext: 'Relaciones en Grafo', icon: GitMerge, color: 'text-indigo-600', bg: 'bg-indigo-50 border border-indigo-100/30' },
+    ...(dependenciesCount > 0 ? [{ label: 'Dependencias Estructurales', value: dependenciesCount.toString(), subtext: 'Relaciones en Grafo', icon: GitMerge, color: 'text-indigo-600', bg: 'bg-indigo-50 border border-indigo-100/30' }] : []),
     { label: 'Reglas de Negocio', value: rulesCount.toString(), subtext: 'Catalogadas con trazabilidad', icon: BookOpen, color: 'text-cyan-600', bg: 'bg-cyan-50 border border-cyan-100/30' },
   ];
 

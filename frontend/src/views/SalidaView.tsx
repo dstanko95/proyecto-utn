@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { CheckCircle2, FileText, GitBranch, History, Sparkles, Database, Layers, ArrowRight, FileCheck, AlertTriangle, RotateCcw, HelpCircle } from 'lucide-react';
+import { CheckCircle2, FileText, GitBranch, History, Sparkles, Layers, ArrowRight, FileCheck, AlertTriangle, RotateCcw, HelpCircle, XCircle } from 'lucide-react';
 import { api } from '../api';
 import { getGeneralDescription, formatGeminiModel } from '../utils/requirementUtils';
 import MermaidViewer from '../components/MermaidViewer';
@@ -12,12 +12,17 @@ interface SalidaViewProps {
   onRetryGeneration?: (updatedResult: any) => void;
   onApproveSuccess?: () => void;
   onNavigateToProcesamiento?: () => void;
+  onRejectRequirement?: (feedback: string) => void;
 }
 
-export default function SalidaView({ activeProject, aiResult, onNewRequirement, onViewApproved, onRetryGeneration, onApproveSuccess, onNavigateToProcesamiento }: SalidaViewProps) {
+export default function SalidaView({ activeProject, aiResult, onNewRequirement, onViewApproved, onRetryGeneration, onApproveSuccess, onNavigateToProcesamiento, onRejectRequirement }: SalidaViewProps) {
   const [activeTab, setActiveTab] = useState<'markdown' | 'flowchart' | 'dependencies' | 'versions'>('markdown');
   const [isApproving, setIsApproving] = useState(false);
   const [isApproved, setIsApproved] = useState(false);
+
+  // Rejection / Adjustment modal state
+  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
 
   // Retry & AI state management
   const [currentAiResult, setCurrentAiResult] = useState(aiResult);
@@ -193,6 +198,17 @@ export default function SalidaView({ activeProject, aiResult, onNewRequirement, 
           </div>
 
           <div className="flex items-center gap-3">
+            {!isApproved && (
+              <button
+                onClick={() => setIsRejectModalOpen(true)}
+                disabled={isApproving || isRetrying}
+                className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-xs font-semibold text-red-700 hover:bg-red-100 shadow-xs cursor-pointer transition-all"
+                title="Rechazar o solicitar ajustes a la documentación para reenviar a Fase 2"
+              >
+                <XCircle className="h-4 w-4 text-red-600" />
+                <span>Rechazar / Solicitar Ajustes</span>
+              </button>
+            )}
             <button
               onClick={handleRetry}
               disabled={isRetrying || isApproving}
@@ -357,18 +373,6 @@ export default function SalidaView({ activeProject, aiResult, onNewRequirement, 
             </button>
 
             <button
-              onClick={() => setActiveTab('dependencies')}
-              className={`flex items-center gap-2 py-3 text-xs font-semibold border-b-2 transition-colors ${
-                activeTab === 'dependencies'
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              <Layers className="h-4 w-4" />
-              Grafo de Dependencias
-            </button>
-
-            <button
               onClick={() => setActiveTab('versions')}
               className={`flex items-center gap-2 py-3 text-xs font-semibold border-b-2 transition-colors ${
                 activeTab === 'versions'
@@ -396,31 +400,6 @@ export default function SalidaView({ activeProject, aiResult, onNewRequirement, 
             <MermaidViewer chart={mermaidDiagram} title="Diagrama de Flujo (Mermaid)" defaultMode="preview" />
           )}
 
-          {activeTab === 'dependencies' && (
-            <div className="rounded-lg bg-blue-50/40 p-6 border border-blue-100 space-y-4">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-blue-900 flex items-center gap-2">
-                <Database className="h-4 w-4 text-blue-600" />
-                Mapa de Impacto en el Grafo de Conocimiento
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="rounded-lg bg-white p-4 border border-slate-200 shadow-xs">
-                  <span className="text-xs font-semibold text-slate-500">Requerimiento</span>
-                  <p className="text-sm font-bold text-slate-800 mt-1">{reqCode}</p>
-                </div>
-                <div className="rounded-lg bg-white p-4 border border-slate-200 shadow-xs">
-                  <span className="text-xs font-semibold text-slate-500">Relación Estructural</span>
-                  <p className="text-sm font-bold text-blue-600 mt-1">Crea & Modifica ➔</p>
-                </div>
-                <div className="rounded-lg bg-white p-4 border border-slate-200 shadow-xs">
-                  <span className="text-xs font-semibold text-slate-500">Módulos Afectados</span>
-                  <p className="text-sm font-bold text-purple-700 mt-1">
-                    {activeResult?.diagnosis?.detected_dependencies?.join(', ') || 'Grafo del Proyecto'}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
           {activeTab === 'versions' && (
             <div className="space-y-3">
               <div className="rounded-lg border border-slate-200 bg-white p-4 flex items-center justify-between shadow-2xs">
@@ -443,6 +422,70 @@ export default function SalidaView({ activeProject, aiResult, onNewRequirement, 
           )}
         </div>
       </div>
+
+      {/* Modal para solicitar ajustes de requerimiento */}
+      {isRejectModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-fade-in">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-red-100 text-red-700 rounded-lg">
+                  <XCircle className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-800">Solicitar Ajustes / Rechazo</h3>
+                  <p className="text-xs text-slate-500">Ingresa los motivos u observaciones para que la IA refine la especificación.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsRejectModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer text-sm font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Observaciones del Evaluador / Cambios requeridos:
+              </label>
+              <textarea
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                rows={4}
+                placeholder="Ejemplo: Faltan las reglas de negocio para el cálculo de descuentos en pagos con tarjeta. Corregir los roles de usuario."
+                className="w-full rounded-xl border border-slate-300 p-3 text-xs text-slate-800 focus:border-red-500 focus:ring-1 focus:ring-red-200 outline-none leading-relaxed"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsRejectModalOpen(false)}
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!rejectionReason.trim()) return;
+                  if (onRejectRequirement) {
+                    onRejectRequirement(rejectionReason);
+                  }
+                  setIsRejectModalOpen(false);
+                  setRejectionReason('');
+                }}
+                disabled={!rejectionReason.trim()}
+                className="flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50 cursor-pointer transition-all shadow-sm shadow-red-200"
+              >
+                <span>Enviar a Fase 2 para Re-refinamiento</span>
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
