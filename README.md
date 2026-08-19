@@ -13,7 +13,7 @@ En el desarrollo de software, la ambigüedad, la falta de contexto y la inconsis
 ReqRefiner soluciona esta problemática mediante:
 1. **Detección Temprana de Ambigüedades**: Evalúa si el requerimiento ingresado por el usuario contiene suficiente información o si requiere aclaraciones interactivas antes de avanzar.
 2. **Generación Automatizada de Especificaciones**: Produce automáticamente documentación técnica estandarizada (Historias de Usuario, Criterios de Aceptación, Diagramas Mermaid).
-3. **Validación Lógica y de Consistencia**: Detecta reglas de negocio contradictorias o dependencias faltantes respecto al contexto global del proyecto.
+3. **Validación Lógica y de Consistencia**: Detecta reglas de negocio respecto al contexto global del proyecto.
 4. **Memoria de Dominio Persistente (RAG)**: Aprende reglas de negocio transversales y patrones del dominio a medida que se aprueban nuevos requerimientos, evitando repetir inconsistencias pasadas.
 
 ---
@@ -94,8 +94,6 @@ El microservicio de IA orquesta cinco agentes especializados que interactúan se
 - 🔄 **Refinamiento Interactivo (Loop de Preguntas y Respuestas)**: El sistema interroga al usuario cuando falta contexto crítico antes de generar la versión final.
 - 📊 **Visualización de Diagramas y Criterios de Aceptación**: Generación instantánea de diagramas interactivos y escenarios estructurados listos para pruebas automatizadas.
 - 📜 **Historial de Versiones e Inmutabilidad**: Control de versiones de cada requerimiento refinado, permitiendo auditar cambios y evolución.
-- 🕸️ **Grafo de Entidades y Trazabilidad**: Visualización de relaciones de dependencia entre requerimientos y reglas de negocio del proyecto.
-- ⏱️ **Consola de Métricas y Consumo de Tokens**: Medición de latencia, consumo de tokens y llamadas a la API de LLMs en tiempo real.
 
 ---
 
@@ -127,7 +125,6 @@ proyecto-utn/
 │   │   ├── api.ts             # Cliente de API REST
 │   │   └── App.tsx            # Contenedor principal y enrutamiento
 │   └── Dockerfile
-├── documentos/                # Documentación ejecutiva y académica de entrega
 ├── docker-compose.yml         # Orquestador Docker para todos los servicios
 ├── .env.example               # Plantilla de variables de entorno globales
 └── README.md                  # Documentación principal del proyecto
